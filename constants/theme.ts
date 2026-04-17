@@ -1,0 +1,25 @@
+export const theme = {
+  colors: {
+    primary: '#7C3AED',
+    primaryLight: '#8B5CF6',
+    secondary: '#3B82F6',
+    background: '#F9FAFB',
+    surface: '#FFFFFF',
+    text: '#1F2937',
+    textSecondary: '#6B7280',
+    success: '#10B981',
+    successLight: '#D1FAE5',
+    warning: '#F59E0B',
+    warningLight: '#FEF3C7',
+    danger: '#EF4444',
+    dangerLight: '#FEE2E2',
+    border: '#E5E7EB',
+  },
+  typography: {
+    h1: { fontSize: 24, fontWeight: '700' as const, color: '#1F2937' },
+    h2: { fontSize: 20, fontWeight: '600' as const, color: '#1F2937' },
+    h3: { fontSize: 16, fontWeight: '600' as const, color: '#1F2937' },
+    body: { fontSize: 14, color: '#6B7280' },
+    small: { fontSize: 12, color: '#9CA3AF' },
+  },
+};
