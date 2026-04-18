@@ -14,6 +14,33 @@ def feature_engineering(df):
     df['Gender'] = df['Gender'].map({'male': 0, 'female': 1}).fillna(0)
 
     # -------------------------------
+    # BMI (FROM SUPABASE)
+    # -------------------------------
+    df['BMI'] = df['Weight'] / ((df['Height'] / 100) ** 2)
+
+    # -------------------------------
+    # STRESS LEVEL (DERIVED)
+    # -------------------------------
+    df['StressLevel'] = (
+        df['ScreenTime'] * 0.3 +
+        df['LateNightUsage'] * 2 +
+        (10 - df['SleepHours']) * 0.4 +
+        df['InactivityPeriods'] * 0.3
+    )
+    df['StressLevel'] = df['StressLevel'].clip(1, 10)
+
+    # -------------------------------
+    # DOPAMINE SCORE (DERIVED)
+    # -------------------------------
+    df['dopamine_score'] = (
+        df['ScreenTime'] * 0.4 +
+        df['LateNightUsage'] * 2 +
+        df['StressLevel'] * 0.3 +
+        (10 - df['SleepHours']) * 0.3
+    )
+    df['dopamine_score'] = df['dopamine_score'].clip(1, 10)
+
+    # -------------------------------
     # BMI CATEGORY
     # -------------------------------
     def bmi_category(bmi):
@@ -29,20 +56,18 @@ def feature_engineering(df):
     df['bmi_category'] = df['BMI'].apply(bmi_category)
 
     # -------------------------------
-    # INTERNAL FEATURES (used for scoring)
+    # INTERNAL SCORES
     # -------------------------------
     SleepScore = 1 - abs(df['SleepHours'] - 7.5) / 7.5
     ActivityScore = df['ActivityLevel'] / 5
-    DietScore = df['DietQuality'] / 5
+    DietScore = df['MealsPerDay'] / 5  # simplified proxy
     StressScore = df['StressLevel'] / 10
     SedentaryIndex = (df['SittingTime'] + df['InactivityPeriods']) / 20
     DigitalLoad = df['ScreenTime']
 
     # -------------------------------
-    # FINAL FEATURES REQUIRED
+    # FINAL ENGINEERED FEATURES
     # -------------------------------
-
-    # health_score
     df['health_score'] = (
         SleepScore +
         ActivityScore +
@@ -51,7 +76,6 @@ def feature_engineering(df):
         (1 - SedentaryIndex)
     ) / 5
 
-    # lifestyle_risk
     df['lifestyle_risk'] = (
         DigitalLoad * 0.2 +
         StressScore * 0.2 +
@@ -61,18 +85,32 @@ def feature_engineering(df):
     )
 
     # -------------------------------
-    # HANDLE MISSING VALUES
+    # DROP RAW DB FIELDS (NOT USED IN MODEL)
     # -------------------------------
-    df.fillna(df.mean(numeric_only=True), inplace=True)
+    df.drop(columns=['Height', 'Weight'], inplace=True)
 
     # -------------------------------
-    # FINAL FEATURE LIST (STRICT)
+    # FINAL FEATURE LIST (MODEL INPUT)
     # -------------------------------
     final_features = [
-        'ScreenTime', 'SleepHours', 'LateNightUsage', 'ActivityLevel',
-        'DietQuality', 'SittingTime', 'InactivityPeriods', 'StressLevel',
-        'Gender', 'MealsPerDay', 'CalorieIntake', 'BMI', 'dopamine_score',
-        'lifestyle_risk', 'health_score', 'bmi_category'
+        'ScreenTime',
+        'SleepHours',
+        'LateNightUsage',
+        'ActivityLevel',
+        'MealsPerDay',
+        'SittingTime',
+        'InactivityPeriods',
+        'StressLevel',
+        'Gender',
+        'CalorieIntake',
+        'BMI',
+        'dopamine_score',
+        'lifestyle_risk',
+        'health_score',
+        'bmi_category'
     ]
+
+    # Handle missing values
+    df.fillna(df.mean(numeric_only=True), inplace=True)
 
     return df[final_features]
