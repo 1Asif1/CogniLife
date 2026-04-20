@@ -15,11 +15,13 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     """Schema for user response"""
-    id: str
+    user_id: str
     email: str
     name: str
     age: Optional[int] = None
     gender: Optional[str] = None
+    height: Optional[int] = None
+    weight: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

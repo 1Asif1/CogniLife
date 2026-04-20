@@ -10,21 +10,32 @@ class SupabaseClient:
     """Client for Supabase database operations"""
     
     def __init__(self):
-        """Initialize Supabase client"""
+        """Initialize Supabase client with both anon and service keys"""
         self.url = settings.supabase_url
-        self.key = settings.supabase_key
-        self.client = None
+        self.anon_key = settings.supabase_key
+        self.service_key = settings.supabase_service_key
+        self.client_anon = None
+        self.client_service = None
 
         try:
-            if not self.url or not self.key:
+            if not self.url or not self.anon_key:
                 raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
 
-            self.client = create_client(self.url, self.key)
+            # Create anon client for reads
+            self.client_anon = create_client(self.url, self.anon_key)
+            
+            # Create service client for writes (bypasses RLS)
+            if self.service_key:
+                self.client_service = create_client(self.url, self.service_key)
+            else:
+                self.client_service = self.client_anon
+                
             logger.info("✅ Supabase client initialized")
             logger.info(f"   URL: {self.url}")
         except Exception as e:
             logger.error(f"❌ Error initializing Supabase: {e}")
-            self.client = None
+            self.client_anon = None
+            self.client_service = None
 
     def _execute(self, query):
         result = query.execute()
@@ -37,11 +48,12 @@ class SupabaseClient:
         """Get user by email address"""
         try:
             logger.debug(f"Getting user by email: {email}")
-            if self.client is None:
+            client = self.client_service or self.client_anon
+            if client is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("users").select("*").eq("email", email).limit(1)
+                client.table("users").select("*").eq("email", email).limit(1)
             )
             return data[0] if data else None
         except Exception as e:
@@ -52,38 +64,37 @@ class SupabaseClient:
         """Get user by ID"""
         try:
             logger.debug(f"Getting user: {user_id}")
-            if self.client is None:
+            client = self.client_service or self.client_anon
+            if client is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("users").select("*").eq("id", user_id).limit(1)
+                client.table("users").select("*").eq("user_id", user_id).limit(1)
             )
             return data[0] if data else None
         except Exception as e:
             logger.error(f"Error getting user: {e}")
-            return None
+            raise
 
     async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new user"""
         try:
             logger.debug(f"Creating user with data: {user_data}")
-            user_id = str(uuid.uuid4())
             user_record = {
-                "id": user_id,
                 "email": user_data.get("email"),
                 "name": user_data.get("name"),
-                "age": user_data.get("age"),
-                "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("users").insert(user_record).select("*")
+                self.client_service.table("users").insert([user_record])
             )
+            created_user = data[0] if data else user_record
+            user_id = created_user.get("user_id")
             logger.info(f"✅ Created user: {user_id}")
-            return data[0] if data else user_record
+            return created_user
         except Exception as e:
             logger.error(f"Error creating user: {e}")
             raise
@@ -102,11 +113,11 @@ class SupabaseClient:
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("daily_logs").insert(log_record).select("*")
+                self.client_service.table("daily_logs").insert([log_record])
             )
             created = data[0] if data else log_record
             logger.info(f"✅ Created daily log: {created.get('id', 'unknown')}")
@@ -130,11 +141,11 @@ class SupabaseClient:
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("predictions").insert(prediction_record).select("*")
+                self.client_service.table("predictions").insert([prediction_record])
             )
             saved = data[0] if data else prediction_record
             logger.info(f"✅ Saved prediction: {saved.get('id', 'unknown')}")
@@ -156,11 +167,11 @@ class SupabaseClient:
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("anomalies").insert(anomaly_record).select("*")
+                self.client_service.table("anomalies").insert([anomaly_record])
             )
             saved = data[0] if data else anomaly_record
             logger.info(f"✅ Saved anomaly: {saved.get('id', 'unknown')}")
@@ -182,11 +193,11 @@ class SupabaseClient:
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("behavior_clusters").insert(cluster_record).select("*")
+                self.client_service.table("behavior_clusters").insert([cluster_record])
             )
             saved = data[0] if data else cluster_record
             logger.info(f"✅ Saved behavior cluster: {saved.get('id', 'unknown')}")
@@ -208,11 +219,11 @@ class SupabaseClient:
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client is None:
+            if self.client_service is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("insights").insert(insight_record).select("*")
+                self.client_service.table("insights").insert([insight_record])
             )
             saved = data[0] if data else insight_record
             logger.info(f"✅ Saved insight: {saved.get('id', 'unknown')}")
@@ -225,11 +236,12 @@ class SupabaseClient:
         """Get user's daily logs"""
         try:
             logger.debug(f"Getting logs for user {user_id}")
-            if self.client is None:
+            client = self.client_service or self.client_anon
+            if client is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("daily_logs").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+                client.table("daily_logs").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
             )
             return data or []
         except Exception as e:
@@ -240,11 +252,12 @@ class SupabaseClient:
         """Get user's predictions"""
         try:
             logger.debug(f"Getting predictions for user {user_id}")
-            if self.client is None:
+            client = self.client_service or self.client_anon
+            if client is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("predictions").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+                client.table("predictions").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
             )
             return data or []
         except Exception as e:
@@ -255,11 +268,12 @@ class SupabaseClient:
         """Get user's insights"""
         try:
             logger.debug(f"Getting insights for user {user_id}")
-            if self.client is None:
+            client = self.client_service or self.client_anon
+            if client is None:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client.table("insights").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+                client.table("insights").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
             )
             return data or []
         except Exception as e:

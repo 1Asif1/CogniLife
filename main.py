@@ -287,6 +287,105 @@ async def get_dashboard(user_id: str):
         )
 
 
+# ==================== AUTH ENDPOINTS ====================
+
+@app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED, tags=["Auth"])
+async def auth_signup(email: str, password: str, name: str):
+    """Sign up a new user via Supabase Auth"""
+    try:
+        from supabase import create_client
+        client = create_client(settings.supabase_url, settings.supabase_key)
+
+        # Create auth user
+        auth_response = client.auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {"data": {"name": name}},
+        })
+
+        if hasattr(auth_response, "user") and auth_response.user:
+            user_id = auth_response.user.id
+            # Insert profile row
+            client_service = create_client(settings.supabase_url, settings.supabase_service_key)
+            client_service.table("users").insert([{
+                "id": user_id,
+                "email": email,
+                "name": name,
+            }]).execute()
+
+            logger.info(f"Auth signup: created user {user_id}")
+            return {"success": True, "user_id": user_id, "email": email}
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signup failed"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Auth signup error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/api/auth/login", tags=["Auth"])
+async def auth_login(email: str, password: str):
+    """Log in a user via Supabase Auth"""
+    try:
+        from supabase import create_client
+        client = create_client(settings.supabase_url, settings.supabase_key)
+
+        auth_response = client.auth.sign_in_with_password({
+            "email": email,
+            "password": password,
+        })
+
+        if hasattr(auth_response, "session") and auth_response.session:
+            return {
+                "success": True,
+                "access_token": auth_response.session.access_token,
+                "refresh_token": auth_response.session.refresh_token,
+                "user_id": auth_response.user.id,
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Auth login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+
+
+@app.get("/api/auth/verify", tags=["Auth"])
+async def auth_verify(access_token: str):
+    """Verify if a JWT access token is still valid"""
+    try:
+        from supabase import create_client
+        client = create_client(settings.supabase_url, settings.supabase_key)
+
+        user_response = client.auth.get_user(access_token)
+
+        if hasattr(user_response, "user") and user_response.user:
+            return {
+                "valid": True,
+                "user_id": user_response.user.id,
+                "email": user_response.user.email,
+            }
+
+        return {"valid": False}
+    except Exception as e:
+        logger.error(f"Auth verify error: {e}")
+        return {"valid": False, "error": str(e)}
+
+
 #ERROR HANDLERS
 
 @app.exception_handler(HTTPException)
@@ -320,4 +419,3 @@ if __name__ == "__main__":
         reload=settings.api_environment == "development",
         log_level=settings.log_level.lower()
     )
-from fastapi import FastAPI, HTTPException, Depends, status
