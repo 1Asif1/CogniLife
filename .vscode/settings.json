@@ -3,5 +3,16 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python",
+    "editor.formatOnSave": true
+  },
+  "python.analysis.extraPaths": [
+    "C:\\Users\\israd\\AppData\\Roaming\\Python\\Python314\\site-packages"
+  ],
+  "python.analysis.venvPath": "C:\\Users\\israd\\AppData\\Roaming\\Python\\Python314"
 }
