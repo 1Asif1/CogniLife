@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Card } from '../../components/Card';
@@ -6,9 +7,52 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 export default function BasicInfoScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  
+  const [gender, setGender] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleContinue = async () => {
+    if (!gender || !height || !weight) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (!user) {
+      setError('You must be logged in');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          gender: gender.trim(),
+          height: parseFloat(height),
+          weight: parseFloat(weight)
+        })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+      
+      router.push('/onboarding/lifestyle');
+    } catch (e: any) {
+      setError(e.message || 'Error updating profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <GradientBackground>
@@ -37,10 +81,18 @@ export default function BasicInfoScreen() {
               <Text style={styles.cardTitle}>Basic Information</Text>
               <Text style={styles.cardSubtitle}>Help us understand you better</Text>
 
+              {error ? (
+                <Text style={{ color: theme.colors.danger, marginBottom: 12, fontSize: 13 }}>
+                  {error}
+                </Text>
+              ) : null}
+
               <Input 
-                label="Age" 
-                placeholder="Enter your age" 
-                keyboardType="numeric" 
+                label="Gender" 
+                placeholder="Male, Female, Other" 
+                autoCapitalize="words"
+                value={gender}
+                onChangeText={setGender}
               />
               
               <View style={styles.row}>
@@ -49,6 +101,8 @@ export default function BasicInfoScreen() {
                     label="Height (cm)" 
                     placeholder="170" 
                     keyboardType="numeric" 
+                    value={height}
+                    onChangeText={setHeight}
                   />
                 </View>
                 <View style={styles.halfWidth}>
@@ -56,15 +110,21 @@ export default function BasicInfoScreen() {
                     label="Weight (kg)" 
                     placeholder="70" 
                     keyboardType="numeric" 
+                    value={weight}
+                    onChangeText={setWeight}
                   />
                 </View>
               </View>
 
-              <Button 
-                title="Continue >" 
-                onPress={() => router.push('/onboarding/lifestyle')} 
-                style={styles.button}
-              />
+              {loading ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginTop: 16 }} />
+              ) : (
+                <Button 
+                  title="Continue >" 
+                  onPress={handleContinue} 
+                  style={styles.button}
+                />
+              )}
             </Card>
 
           </ScrollView>
@@ -73,6 +133,7 @@ export default function BasicInfoScreen() {
     </GradientBackground>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },

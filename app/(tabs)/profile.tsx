@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Card } from '../../components/Card';
 import { theme } from '../../constants/theme';
@@ -25,6 +27,14 @@ const SettingItem = ({ icon, title, subtitle, showBorder = true }: any) => (
 );
 
 export default function ProfileScreen() {
+  const { signOut } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/auth/login');
+  };
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
@@ -114,7 +124,7 @@ export default function ProfileScreen() {
           <SettingItem icon="mail-outline" title="Contact Support" showBorder={false} />
         </Card>
 
-        <TouchableOpacity style={styles.logoutCard}>
+        <TouchableOpacity style={styles.logoutCard} onPress={handleLogout}>
            <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} style={{ marginRight: 8 }} />
            <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>

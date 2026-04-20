@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('users')
         .insert([
           {
-            id: data.user.id,
+            user_id: data.user.id,
             email: email,
             name: name,
           },

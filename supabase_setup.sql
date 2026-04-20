@@ -88,11 +88,11 @@ ALTER TABLE behavior_clusters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy for users (for now, allow all since we're using anon key with manual user_id)
-CREATE POLICY "Allow all for users table" ON users FOR ALL TO public WITH CHECK (true);
+CREATE POLICY "Allow all for users table" ON users FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- RLS Policies for other tables (users can see all for now, restrict later with auth)
-CREATE POLICY "Allow all for daily_logs" ON daily_logs FOR ALL TO public WITH CHECK (true);
-CREATE POLICY "Allow all for predictions" ON predictions FOR ALL TO public WITH CHECK (true);
-CREATE POLICY "Allow all for anomalies" ON anomalies FOR ALL TO public WITH CHECK (true);
-CREATE POLICY "Allow all for behavior_clusters" ON behavior_clusters FOR ALL TO public WITH CHECK (true);
-CREATE POLICY "Allow all for insights" ON insights FOR ALL TO public WITH CHECK (true);
+CREATE POLICY "Allow all for daily_logs" ON daily_logs FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for predictions" ON predictions FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for anomalies" ON anomalies FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for behavior_clusters" ON behavior_clusters FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for insights" ON insights FOR ALL TO public USING (true) WITH CHECK (true);
