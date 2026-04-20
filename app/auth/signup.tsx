@@ -114,6 +114,7 @@ export default function SignupScreen() {
                   setError('');
                 }}
               />
+              
 
               {/* Email */}
               <Input
