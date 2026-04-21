@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
   activity_level VARCHAR(20) DEFAULT 'low',
   sitting_time FLOAT DEFAULT 0,
   inactivity_periods INT DEFAULT 0,
+  steps INT DEFAULT 0,
   -- Manual entry
   meals_per_day INT DEFAULT 3,
   calorie_intake INT DEFAULT 0,

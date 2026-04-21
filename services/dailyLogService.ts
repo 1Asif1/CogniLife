@@ -14,6 +14,7 @@ export interface AutoCollectedData {
   activityLevel: 'low' | 'moderate' | 'high';
   sittingTime: number;
   inactivityPeriods: number;
+  steps: number;
 }
 
 export interface DailyLogEntry {
@@ -23,6 +24,7 @@ export interface DailyLogEntry {
   activityLevel: string;
   sittingTime: number;
   inactivityPeriods: number;
+  steps: number;
   mealsPerDay: number;
   calorieIntake: number;
 }
@@ -37,6 +39,7 @@ export async function collectAutoData(): Promise<AutoCollectedData> {
     activityLevel: 'low',
     sittingTime: 0,
     inactivityPeriods: 0,
+    steps: 0,
   };
 
   try {
@@ -60,6 +63,7 @@ export async function collectAutoData(): Promise<AutoCollectedData> {
     activityLevel: healthData.activityLevel,
     sittingTime: healthData.sittingTime,
     inactivityPeriods: healthData.inactivityPeriods,
+    steps: healthData.steps,
   };
 }
 
@@ -86,6 +90,7 @@ export async function submitDailyLog(
           activity_level: autoData.activityLevel,
           sitting_time: autoData.sittingTime,
           inactivity_periods: autoData.inactivityPeriods,
+          steps: autoData.steps,
           meals_per_day: manualData.mealsPerDay,
           calorie_intake: manualData.calorieIntake,
         },
@@ -114,7 +119,7 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
       .select('*')
       .eq('user_id', userId)
       .eq('date', today)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return null;
 
@@ -125,6 +130,7 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
       activityLevel: data.activity_level || 'low',
       sittingTime: data.sitting_time || 0,
       inactivityPeriods: data.inactivity_periods || 0,
+      steps: data.steps || 0,
       mealsPerDay: data.meals_per_day || 3,
       calorieIntake: data.calorie_intake || 0,
     };
@@ -133,3 +139,4 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
     return null;
   }
 }
+

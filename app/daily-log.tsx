@@ -47,6 +47,7 @@ export default function DailyLogScreen() {
     activityLevel: 'low',
     sittingTime: 0,
     inactivityPeriods: 0,
+    steps: 0,
   });
 
   // Manual entry data
@@ -96,6 +97,7 @@ export default function DailyLogScreen() {
           activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
           sittingTime: existing.sittingTime,
           inactivityPeriods: existing.inactivityPeriods,
+          steps: existing.steps,
         });
       }
     }
@@ -111,6 +113,7 @@ export default function DailyLogScreen() {
         activityLevel: data.activityLevel || prev.activityLevel,
         sittingTime: data.sittingTime || prev.sittingTime,
         inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
+        steps: data.steps || prev.steps,
       }));
     } catch (error) {
       console.error('Auto collection failed:', error);
@@ -144,6 +147,7 @@ export default function DailyLogScreen() {
         activityLevel: data.activityLevel,
         sittingTime: data.sittingTime,
         inactivityPeriods: data.inactivityPeriods,
+        steps: data.steps,
       }));
     }
   };
@@ -166,7 +170,7 @@ export default function DailyLogScreen() {
 
     if (result.success) {
       Alert.alert(
-        '✅ Log Saved!',
+        'Log Saved!',
         existingLog 
           ? 'Your daily log has been updated successfully.'
           : 'Your daily log has been saved successfully.',
@@ -308,6 +312,13 @@ export default function DailyLogScreen() {
                   <Text style={styles.wearableLabel}>Sleep</Text>
                 </View>
                 <View style={styles.wearableItem}>
+                  <Ionicons name="footsteps" size={18} color="#3B82F6" />
+                  <Text style={[styles.wearableValue, { color: '#3B82F6' }]}>
+                    {autoData.steps.toLocaleString()}
+                  </Text>
+                  <Text style={styles.wearableLabel}>Steps</Text>
+                </View>
+                <View style={styles.wearableItem}>
                   <Ionicons name={getActivityIcon(autoData.activityLevel)} size={18} color={getActivityColor(autoData.activityLevel)} />
                   <Text style={[styles.wearableValue, { color: getActivityColor(autoData.activityLevel) }]}>
                     {autoData.activityLevel.charAt(0).toUpperCase() + autoData.activityLevel.slice(1)}
@@ -411,7 +422,7 @@ export default function DailyLogScreen() {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
             ) : (
               <Button
-                title={existingLog ? '💾 Update Daily Log' : '💾 Save Daily Log'}
+                title={existingLog ? 'Update Daily Log' : 'Save Daily Log'}
                 onPress={handleSubmit}
                 style={styles.submitBtn}
               />

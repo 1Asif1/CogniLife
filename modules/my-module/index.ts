@@ -1,17 +1,5 @@
-import { requireNativeModule } from 'expo-modules-core';
-
-// Require the native module. 
-// "ExpoScreenTime" exactly matches the Name("ExpoScreenTime") in the ModuleDefinition in Kotlin
-const ExpoScreenTime = requireNativeModule('ExpoScreenTime');
-
-export async function checkPermission(): Promise<boolean> {
-  return await ExpoScreenTime.checkPermission();
-}
-
-export async function requestPermission(): Promise<boolean> {
-  return await ExpoScreenTime.requestPermission();
-}
-
-export async function getScreenTimeData(): Promise<{ screenTime: number, lateNightUsage: number }> {
-  return await ExpoScreenTime.getScreenTimeData();
-}
+// Reexport the native module. On web, it will be resolved to ExpoScreenTimeModule.web.ts
+// and on native platforms to ExpoScreenTimeModule.ts
+export { default } from './src/ExpoScreenTimeModule';
+export { default as ExpoScreenTimeView } from './src/ExpoScreenTimeView';
+export * from  './src/ExpoScreenTime.types';
