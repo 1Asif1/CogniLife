@@ -18,12 +18,20 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS daily_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  sleep_duration FLOAT DEFAULT 0,
-  mood INT DEFAULT 5,
-  stress_level INT DEFAULT 5,
-  energy_level INT DEFAULT 5,
-  sleep_quality INT DEFAULT 5,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  -- Mobile data (auto-collected)
+  screen_time FLOAT DEFAULT 0,
+  late_night_usage FLOAT DEFAULT 0,
+  -- Wearable data (from Health Connect)
+  sleep_hours FLOAT DEFAULT 0,
+  activity_level VARCHAR(20) DEFAULT 'low',
+  sitting_time FLOAT DEFAULT 0,
+  inactivity_periods INT DEFAULT 0,
+  -- Manual entry
+  meals_per_day INT DEFAULT 3,
+  calorie_intake INT DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, date)
 );
 
 -- Create predictions table

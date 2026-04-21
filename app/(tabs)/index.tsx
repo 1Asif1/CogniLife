@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Card } from '../../components/Card';
 import { theme } from '../../constants/theme';
@@ -35,6 +36,8 @@ const InsightAlert = ({ text, icon, color, bgColor }: any) => (
 );
 
 export default function HomeScreen() {
+  const router = useRouter();
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
@@ -45,7 +48,7 @@ export default function HomeScreen() {
                 <Text style={styles.greeting}>Good Morning</Text>
                 <Text style={styles.name}>Asif</Text>
               </View>
-              <TouchableOpacity style={styles.logButton}>
+              <TouchableOpacity style={styles.logButton} onPress={() => router.push('/daily-log')}>
                 <Ionicons name="calendar-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
                 <Text style={styles.logButtonText}>Log Today</Text>
               </TouchableOpacity>
