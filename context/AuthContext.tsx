@@ -50,41 +50,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
     if (!error) {
-      await fetchUserProfile(email);
+      const userId = (data as any)?.user?.id;
+      await fetchUserProfile(email, userId);
     }
+
     return { error };
   };
 
-  const fetchUserProfile = async (email: string) => {
+  const fetchUserProfile = async (email?: string, userId?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-      
+      let query = supabase.from('users').select('*');
+
+      if (userId) query = query.eq('user_id', userId);
+      else if (email) query = query.eq('email', email);
+      else {
+        console.warn('fetchUserProfile called without identifier');
+        return;
+      }
+
+      const { data, error } = await query.maybeSingle();
+
       if (error) {
         console.error('Error fetching user profile:', error);
         return;
       }
-      
+
       if (data) {
         setUserProfile({
-          id: data.id,
+          id: data.user_id ?? data.id,
           email: data.email,
           name: data.name,
           age: data.age,
           height: data.height,
           weight: data.weight,
         });
+      } else {
+        setUserProfile(null);
+        console.warn('No user profile found for', userId ?? email);
+
+        // Debugging helpers: try alternative lookups and log results
+        try {
+          if (userId) {
+            const byUserId = await supabase.from('users').select('*').eq('user_id', userId).maybeSingle();
+            console.warn('Debug fetchUserProfile (by user_id):', { data: byUserId.data ?? null, error: byUserId.error ?? null });
+          }
+
+          if (email) {
+            // exact email
+            const byEmail = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+            console.warn('Debug fetchUserProfile (by email exact):', { data: byEmail.data ?? null, error: byEmail.error ?? null });
+
+            // case-insensitive fallback
+            const byEmailIlike = await supabase.from('users').select('*').ilike('email', email).maybeSingle();
+            console.warn('Debug fetchUserProfile (by email ilike):', { data: byEmailIlike.data ?? null, error: byEmailIlike.error ?? null });
+          }
+        } catch (dbgErr) {
+          console.error('Debug lookup failed:', dbgErr);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
     }
   };
 

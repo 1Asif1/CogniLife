@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
@@ -122,7 +123,7 @@ export default function HomeScreen() {
           icon="trending-up-outline" color={theme.colors.success} bgColor={theme.colors.successLight} />
         <InsightAlert 
           text="High dopamine activities detected - consider balance"
-          icon="brain-outline" color={theme.colors.secondary} bgColor="#EFF6FF" />
+          icon="bulb-outline" color={theme.colors.secondary} bgColor="#EFF6FF" />
 
       </View>
     </ScrollView>
