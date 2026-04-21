@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
-import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
+import { theme } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 
 const InfoRow = ({ icon, text }: { icon: any; text: string }) => (
   <View style={styles.infoRow}>
@@ -27,12 +28,31 @@ const SettingItem = ({ icon, title, subtitle, showBorder = true }: any) => (
 );
 
 export default function ProfileScreen() {
-  const { signOut } = useAuth();
+  const [device, setDevice] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const { signOut, userProfile } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
     await signOut();
     router.replace('/auth/login');
+  };
+  const handleAddDevice = () => {
+  setMessage("Scanning... 🔍");
+
+  setTimeout(() => {
+    const devices = ["Mi Band", "Fitbit", "Apple Watch", null];
+
+    const randomDevice = devices[Math.floor(Math.random() * devices.length)];
+
+    if (randomDevice) {
+      setDevice(randomDevice);
+      setMessage("Connected successfully ✅");
+    } else {
+      setDevice(null);
+      setMessage("No device nearby ❌");
+    }
+  }, 2000);
   };
 
   return (
@@ -47,10 +67,10 @@ export default function ProfileScreen() {
           <Card style={styles.profileCard}>
             <View style={styles.profileHeader}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>A</Text>
+                <Text style={styles.avatarText}>{userProfile?.name?.charAt(0).toUpperCase() || 'U'}</Text>
               </View>
               <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>Asif</Text>
+                <Text style={styles.profileName}>{userProfile?.name || 'User'}</Text>
                 <Text style={styles.profileMember}>Member since January 2026</Text>
               </View>
               <TouchableOpacity style={styles.editBtn}>
@@ -59,9 +79,9 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.divider} />
-            <InfoRow icon="mail-outline" text="asif@cognilife.com" />
+            <InfoRow icon="mail-outline" text={userProfile?.email || 'user@example.com'} />
             <InfoRow icon="call-outline" text="+91 XXXXX XXXXX" />
-            <InfoRow icon="body-outline" text="22 years • 179cm • 72kg" />
+            <InfoRow icon="body-outline" text={`${userProfile?.age || '--'} years • ${userProfile?.height || '--'}cm • ${userProfile?.weight || '--'}kg`} />
           </Card>
         </View>
       </View>
@@ -106,9 +126,25 @@ export default function ProfileScreen() {
               <Text style={styles.connectedText}>Connected</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.addDeviceBtn}>
+          <TouchableOpacity 
+            style={styles.addDeviceBtn} 
+            onPress={handleAddDevice}
+          >
             <Text style={styles.addDeviceText}>+ Add New Device</Text>
           </TouchableOpacity>
+          {message !== "" && (
+            <Text style={{ marginTop: 10, textAlign: "center" }}>
+              {message}
+            </Text>
+         )}
+
+         {device && (
+           <View style={{ marginTop: 10, alignItems: "center" }}>
+             <Text style={{ fontWeight: "bold" }}>
+               Connected Device: {device}
+             </Text>
+           </View>
+          )}
         </Card>
 
         <Card style={styles.sectionCard}>

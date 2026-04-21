@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
-import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
+import { theme } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
+
 
 // Simple mock for a circular progress until react-native-svg is fully handled
 const CircularProgressMock = ({ score }: { score: number }) => (
@@ -37,6 +39,15 @@ const InsightAlert = ({ text, icon, color, bgColor }: any) => (
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user, userProfile } = useAuth();
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good Morning";
+    else if (hour < 17) return "Good Afternoon";
+    else return "Good Evening";
+  };
 
   return (
     <ScrollView style={styles.container} bounces={false}>
@@ -45,8 +56,10 @@ export default function HomeScreen() {
           <SafeAreaView>
             <View style={styles.headerContent}>
               <View>
-                <Text style={styles.greeting}>Good Morning</Text>
-                <Text style={styles.name}>Asif</Text>
+                <Text style={styles.greeting}>{getGreeting()}</Text>
+                <Text style={styles.name}>
+                  {userProfile?.name || "User"}
+                </Text>
               </View>
               <TouchableOpacity style={styles.logButton} onPress={() => router.push('/daily-log')}>
                 <Ionicons name="calendar-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
