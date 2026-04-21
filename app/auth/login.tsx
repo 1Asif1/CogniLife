@@ -1,22 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
 import { Input } from '../../components/Input';
 import { theme } from '../../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen() {

@@ -1,15 +1,15 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
+import { useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
 import { Input } from '../../components/Input';
 import { theme } from '../../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 export default function BasicInfoScreen() {
   const router = useRouter();

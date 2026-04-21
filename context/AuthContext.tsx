@@ -9,6 +9,7 @@ interface UserProfile {
   age: number | null;
   height: number | null;
   weight: number | null;
+  created_at?: string | null;
 }
 
 interface AuthContextType {
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           age: data.age,
           height: data.height,
           weight: data.weight,
+          created_at: data.created_at ?? null,
         });
       } else {
         setUserProfile(null);

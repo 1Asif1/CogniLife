@@ -1,13 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
+import { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
 import { OptionSelect } from '../../components/OptionSelect';
 import { theme } from '../../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
 
 export default function LifestyleScreen() {
   const router = useRouter();

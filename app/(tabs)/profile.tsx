@@ -71,7 +71,9 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{userProfile?.name || 'User'}</Text>
-                <Text style={styles.profileMember}>Member since January 2026</Text>
+                <Text style={styles.profileMember}>
+                  Member since {userProfile?.created_at ? new Date(userProfile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '----'}
+                </Text>
               </View>
               <TouchableOpacity style={styles.editBtn}>
                 <Text style={styles.editBtnText}>Edit</Text>
@@ -80,8 +82,8 @@ export default function ProfileScreen() {
 
             <View style={styles.divider} />
             <InfoRow icon="mail-outline" text={userProfile?.email || 'user@example.com'} />
-            <InfoRow icon="call-outline" text="+91 XXXXX XXXXX" />
-            <InfoRow icon="body-outline" text={`${userProfile?.age || '--'} years • ${userProfile?.height || '--'}cm • ${userProfile?.weight || '--'}kg`} />
+            
+            <InfoRow icon="body-outline" text={`${userProfile?.height || '--'}cm • ${userProfile?.weight || '--'}kg`} />
           </Card>
         </View>
       </View>

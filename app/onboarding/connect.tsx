@@ -1,19 +1,18 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
-import { Button } from '../../components/Button';
-import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { screenTimeService } from '../../services/screenTimeService';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
+import { theme } from '../../constants/theme';
 import {
-  initializeHealthConnect,
-  requestHealthPermissions,
-  isHealthConnectAvailable,
-  hasHealthPermissions,
+    hasHealthPermissions,
+    initializeHealthConnect,
+    requestHealthPermissions
 } from '../../services/healthConnectService';
+import { screenTimeService } from '../../services/screenTimeService';
 
 interface PermissionCardProps {
   icon: string;
