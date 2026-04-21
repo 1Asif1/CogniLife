@@ -3,9 +3,16 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../../components/Card';
+import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
+
+interface BluetoothDevice {
+  id: string;
+  name: string | null;
+}
 
 const InfoRow = ({ icon, text }: { icon: any; text: string }) => (
   <View style={styles.infoRow}>
@@ -30,6 +37,15 @@ const SettingItem = ({ icon, title, subtitle, showBorder = true }: any) => (
 export default function ProfileScreen() {
   const [device, setDevice] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [foundDevices, setFoundDevices] = useState<BluetoothDevice[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  } | null>(null);
   const { signOut, userProfile } = useAuth();
   const router = useRouter();
 
@@ -37,22 +53,82 @@ export default function ProfileScreen() {
     await signOut();
     router.replace('/auth/login');
   };
-  const handleAddDevice = () => {
-  setMessage("Scanning... 🔍");
 
-  setTimeout(() => {
-    const devices = ["Mi Band", "Fitbit", "Apple Watch", null];
+  const handleDisconnect = async () => {
+    const deviceName = device || 'Apple Watch';
+    setModalConfig({
+      title: 'Disconnect Device',
+      message: `Are you sure you want to disconnect ${deviceName}?`,
+      onConfirm: async () => {
+        setModalVisible(false);
+        setDevice(null);
+        setMessage("Device disconnected successfully ✅");
+      },
+      showCancel: true,
+    });
+    setModalVisible(true);
+  };
 
-    const randomDevice = devices[Math.floor(Math.random() * devices.length)];
+  const handleAddDevice = async () => {
+    setIsScanning(true);
+    setFoundDevices([]);
 
-    if (randomDevice) {
-      setDevice(randomDevice);
-      setMessage("Connected successfully ✅");
-    } else {
-      setDevice(null);
-      setMessage("No device nearby ❌");
+    try {
+      await bluetoothDeviceService.startScan(
+        (device: BluetoothDevice) => {
+          setFoundDevices((prev) => {
+            // Avoid duplicates
+            if (!prev.find((d) => d.id === device.id)) {
+              return [...prev, device];
+            }
+            return prev;
+          });
+        },
+        10000 // 10 second scan
+      );
+
+      // Check if we found devices after scan completes
+      setTimeout(async () => {
+        setIsScanning(false);
+        
+        if (foundDevices.length > 0) {
+          // Show devices to user to select
+          setModalConfig({
+            title: 'Device Found',
+            message: `Found ${foundDevices.length} device(s). Connecting to ${foundDevices[0].name}?`,
+            onConfirm: async () => {
+              setModalVisible(false);
+              const connected = await bluetoothDeviceService.connectToDevice(foundDevices[0].id);
+              if (connected) {
+                setDevice(foundDevices[0].name || 'Unknown Device');
+                setMessage("Connected successfully ✅");
+              } else {
+                setMessage("Connection failed ❌");
+              }
+            },
+            showCancel: true,
+          });
+          setModalVisible(true);
+        } else {
+          setMessage("No devices found ❌");
+          setModalConfig({
+            title: 'No Devices',
+            message: 'No compatible health devices found nearby. Make sure Bluetooth is enabled and your device is in pairing mode.',
+            showCancel: false,
+          });
+          setModalVisible(true);
+        }
+      }, 10000);
+    } catch (error) {
+      setIsScanning(false);
+      setMessage("Scan failed ❌");
+      setModalConfig({
+        title: 'Error',
+        message: 'Failed to scan for devices. Please check Bluetooth permissions.',
+        showCancel: false,
+      });
+      setModalVisible(true);
     }
-  }, 2000);
   };
 
   return (
@@ -114,20 +190,34 @@ export default function ProfileScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Connected Devices</Text>
-          <View style={styles.deviceRow}>
-            <View style={styles.deviceIcon}>
-              <Ionicons name="watch-outline" size={24} color={theme.colors.secondary} />
+          {device ? (
+            <View style={styles.deviceRow}>
+              <View style={styles.deviceIcon}>
+                <Ionicons name="watch-outline" size={24} color={theme.colors.secondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deviceTitle}>{device}</Text>
+                <Text style={styles.deviceSub}>Connected</Text>
+                <Text style={styles.deviceSync}>Last sync: Just now</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.disconnectBtn}
+                onPress={handleDisconnect}
+              >
+                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+              </TouchableOpacity>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.deviceTitle}>Apple Watch</Text>
-              <Text style={styles.deviceSub}>Series 8</Text>
-              <Text style={styles.deviceSync}>Last sync: 2 hours ago</Text>
+          ) : (
+            <View style={styles.deviceRow}>
+              <View style={styles.deviceIcon}>
+                <Ionicons name="watch-outline" size={24} color={theme.colors.secondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deviceTitle}>No Device Connected</Text>
+                <Text style={styles.deviceSub}>Tap 'Add New Device' to connect</Text>
+              </View>
             </View>
-            <View style={styles.connectedBadge}>
-              <View style={styles.connectedDot} />
-              <Text style={styles.connectedText}>Connected</Text>
-            </View>
-          </View>
+          )}
           <TouchableOpacity 
             style={styles.addDeviceBtn} 
             onPress={handleAddDevice}
@@ -139,14 +229,6 @@ export default function ProfileScreen() {
               {message}
             </Text>
          )}
-
-         {device && (
-           <View style={{ marginTop: 10, alignItems: "center" }}>
-             <Text style={{ fontWeight: "bold" }}>
-               Connected Device: {device}
-             </Text>
-           </View>
-          )}
         </Card>
 
         <Card style={styles.sectionCard}>
@@ -169,6 +251,15 @@ export default function ProfileScreen() {
 
         <Text style={styles.version}>CogniLife v1.0.0</Text>
       </View>
+
+      <CustomModal
+        visible={modalVisible}
+        title={modalConfig?.title || ''}
+        message={modalConfig?.message || ''}
+        onConfirm={modalConfig?.onConfirm}
+        onCancel={() => setModalVisible(false)}
+        showCancel={modalConfig?.showCancel}
+      />
     </ScrollView>
   );
 }
@@ -211,6 +302,8 @@ const styles = StyleSheet.create({
   connectedText: { fontSize: 12, color: theme.colors.success, fontWeight: '500' },
   addDeviceBtn: { paddingVertical: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, alignItems: 'center' },
   addDeviceText: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '500' },
+  disconnectBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.danger + '15', borderRadius: 8 },
+  disconnectBtnText: { color: theme.colors.danger, fontSize: 13, fontWeight: '600' },
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
   settingBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   settingIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FAFAFA', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
