@@ -36,6 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Fetch user profile if a session already exists (returning user)
+      if (session?.user) {
+        fetchUserProfile(session.user.email, session.user.id);
+      }
+
       setIsLoading(false);
     });
 
@@ -44,6 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Fetch profile on sign-in events, clear on sign-out
+        if (session?.user) {
+          fetchUserProfile(session.user.email, session.user.id);
+        } else {
+          setUserProfile(null);
+        }
       }
     );
 
@@ -149,6 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Profile creation warning:', profileError.message);
         // Don't fail the signup — auth user is already created
       }
+
+      // 3. Load the profile into state immediately so onboarding/home shows user's name
+      await fetchUserProfile(email, data.user.id);
     }
 
     return { error: null };

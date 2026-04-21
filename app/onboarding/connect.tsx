@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 import {
     hasHealthPermissions,
     initializeHealthConnect,
@@ -58,6 +59,7 @@ function PermissionCard({ icon, iconColor, iconBg, title, description, status, o
 
 export default function ConnectScreen() {
   const router = useRouter();
+  const { user, fetchUserProfile } = useAuth();
   const [screenTimeStatus, setScreenTimeStatus] = useState<'idle' | 'granted' | 'denied' | 'loading'>('idle');
   const [healthStatus, setHealthStatus] = useState<'idle' | 'granted' | 'denied' | 'loading'>('idle');
 
@@ -84,6 +86,14 @@ export default function ConnectScreen() {
     await initializeHealthConnect();
     const granted = await requestHealthPermissions();
     setHealthStatus(granted ? 'granted' : 'idle');
+  };
+
+  const handleGetStarted = async () => {
+    // Re-fetch the full profile so home/profile screens have up-to-date data
+    if (user) {
+      await fetchUserProfile(user.email, user.id);
+    }
+    router.replace('/(tabs)');
   };
 
   return (
@@ -141,11 +151,11 @@ export default function ConnectScreen() {
 
             <Button 
               title="Get Started >" 
-              onPress={() => router.replace('/(tabs)')} 
+              onPress={handleGetStarted} 
               style={styles.button}
             />
             
-            <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.skipButton}>
+            <TouchableOpacity onPress={handleGetStarted} style={styles.skipButton}>
               <Text style={styles.skipText}>Skip for now</Text>
             </TouchableOpacity>
 

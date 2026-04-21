@@ -62,7 +62,7 @@ export default function ProfileScreen() {
       onConfirm: async () => {
         setModalVisible(false);
         setDevice(null);
-        setMessage("Device disconnected successfully ✅");
+        setMessage("Device disconnected successfully ");
       },
       showCancel: true,
     });
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
             return prev;
           });
         },
-        10000 // 10 second scan
+        5000 // 5 second scan
       );
 
       // Check if we found devices after scan completes
@@ -101,16 +101,16 @@ export default function ProfileScreen() {
               const connected = await bluetoothDeviceService.connectToDevice(foundDevices[0].id);
               if (connected) {
                 setDevice(foundDevices[0].name || 'Unknown Device');
-                setMessage("Connected successfully ✅");
+                setMessage("Connected successfully ");
               } else {
-                setMessage("Connection failed ❌");
+                setMessage("Connection failed ");
               }
             },
             showCancel: true,
           });
           setModalVisible(true);
         } else {
-          setMessage("No devices found ❌");
+          setMessage("No devices found ");
           setModalConfig({
             title: 'No Devices',
             message: 'No compatible health devices found nearby. Make sure Bluetooth is enabled and your device is in pairing mode.',
@@ -121,7 +121,7 @@ export default function ProfileScreen() {
       }, 10000);
     } catch (error) {
       setIsScanning(false);
-      setMessage("Scan failed ❌");
+      setMessage("Scan failed ");
       setModalConfig({
         title: 'Error',
         message: 'Failed to scan for devices. Please check Bluetooth permissions.',

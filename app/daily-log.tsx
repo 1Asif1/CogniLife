@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { CustomModal } from '../components/CustomModal';
 import { useAuth } from '../context/AuthContext';
 import { screenTimeService } from '../services/screenTimeService';
 import {
@@ -60,6 +60,15 @@ export default function DailyLogScreen() {
   const [loadingAuto, setLoadingAuto] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [existingLog, setExistingLog] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    showCancel?: boolean;
+  }>({ title: '', message: '' });
 
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {
@@ -122,8 +131,34 @@ export default function DailyLogScreen() {
     setLoadingAuto(false);
   };
 
+  // Helper that shows a CustomModal and returns a promise resolving to the user's choice
+  const showConfirm = (config: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+  }): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setModalConfig({
+        title: config.title,
+        message: config.message,
+        confirmText: config.confirmText || 'OK',
+        showCancel: true,
+        onConfirm: () => {
+          setModalVisible(false);
+          resolve(true);
+        },
+        onCancel: () => {
+          setModalVisible(false);
+          resolve(false);
+        },
+      });
+      setModalVisible(true);
+    });
+  };
+
   const handleRequestScreenTime = async () => {
-    const granted = await screenTimeService.requestPermission();
+    const granted = await screenTimeService.requestPermission(showConfirm);
     setScreenTimePermission(granted);
     if (granted) {
       const data = await screenTimeService.getScreenTimeData();
@@ -137,7 +172,7 @@ export default function DailyLogScreen() {
 
   const handleRequestHealthConnect = async () => {
     await initializeHealthConnect();
-    const granted = await requestHealthPermissions();
+    const granted = await requestHealthPermissions(showConfirm);
     setHealthConnectPermission(granted);
     if (granted) {
       const data = await collectAutoData();
@@ -154,7 +189,14 @@ export default function DailyLogScreen() {
 
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Error', 'You must be logged in to save a daily log.');
+      setModalConfig({
+        title: 'Error',
+        message: 'You must be logged in to save a daily log.',
+        onConfirm: () => setModalVisible(false),
+        confirmText: 'OK',
+        showCancel: false,
+      });
+      setModalVisible(true);
       return;
     }
 
@@ -169,15 +211,28 @@ export default function DailyLogScreen() {
     setSubmitting(false);
 
     if (result.success) {
-      Alert.alert(
-        'Log Saved!',
-        existingLog 
+      setModalConfig({
+        title: 'Log Saved!',
+        message: existingLog
           ? 'Your daily log has been updated successfully.'
           : 'Your daily log has been saved successfully.',
-        [{ text: 'Great!', onPress: () => router.back() }]
-      );
+        onConfirm: () => {
+          setModalVisible(false);
+          router.back();
+        },
+        confirmText: 'Great!',
+        showCancel: false,
+      });
+      setModalVisible(true);
     } else {
-      Alert.alert('Error', result.error || 'Failed to save daily log.');
+      setModalConfig({
+        title: 'Error',
+        message: result.error || 'Failed to save daily log.',
+        onConfirm: () => setModalVisible(false),
+        confirmText: 'OK',
+        showCancel: false,
+      });
+      setModalVisible(true);
     }
   };
 
@@ -430,6 +485,16 @@ export default function DailyLogScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <CustomModal
+        visible={modalVisible}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onConfirm={modalConfig.onConfirm}
+        onCancel={modalConfig.onCancel || (() => setModalVisible(false))}
+        confirmText={modalConfig.confirmText}
+        showCancel={modalConfig.showCancel}
+      />
     </View>
   );
 }

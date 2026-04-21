@@ -1,5 +1,12 @@
 import { Platform, Alert } from 'react-native';
 
+export type ConfirmDialog = (config: {
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}) => Promise<boolean>;
+
 export interface HealthData {
   sleepHours: number;
   activityLevel: 'low' | 'moderate' | 'high';
@@ -63,7 +70,7 @@ export async function initializeHealthConnect(): Promise<boolean> {
 /**
  * Request Health Connect permissions
  */
-export async function requestHealthPermissions(): Promise<boolean> {
+export async function requestHealthPermissions(showConfirm?: ConfirmDialog): Promise<boolean> {
   if (!isInitialized) {
     const initialized = await initializeHealthConnect();
     if (!initialized) return false;
@@ -80,29 +87,26 @@ export async function requestHealthPermissions(): Promise<boolean> {
     // hasPermission = permissions.length > 0;
     
     // Simulated:
-    return new Promise((resolve) => {
-      Alert.alert(
-        '⌚ Health Connect',
-        'CogniLife would like to access your health data from Google Health Connect to track:\n\n• Sleep duration\n• Activity & steps\n• Sitting time\n• Exercise sessions\n\nThis data helps provide personalized health insights.',
-        [
-          {
-            text: 'Deny',
-            style: 'cancel',
-            onPress: () => {
-              hasPermission = false;
-              resolve(false);
-            },
-          },
-          {
-            text: 'Allow',
-            onPress: () => {
-              hasPermission = true;
-              resolve(true);
-            },
-          },
-        ]
-      );
-    });
+    const confirmed = showConfirm
+      ? await showConfirm({
+          title: 'Health Connect',
+          message: 'CogniLife would like to access your health data from Google Health Connect to track:\n\n• Sleep duration\n• Activity & steps\n• Sitting time\n• Exercise sessions\n\nThis data helps provide personalized health insights.',
+          confirmText: 'Allow',
+          cancelText: 'Deny',
+        })
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Health Connect',
+            'CogniLife would like to access your health data from Google Health Connect to track:\n\n• Sleep duration\n• Activity & steps\n• Sitting time\n• Exercise sessions\n\nThis data helps provide personalized health insights.',
+            [
+              { text: 'Deny', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Allow', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    hasPermission = confirmed;
+    return confirmed;
   } catch (error) {
     console.error('Failed to request Health Connect permissions:', error);
     return false;
