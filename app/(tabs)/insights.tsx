@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Card } from '../../components/Card';
-import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { useEffect, useState } from 'react';
+import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BarChart, LineChart } from 'react-native-chart-kit';
+import { Card } from '../../components/Card';
+import { GradientBackground } from '../../components/GradientBackground';
+import { theme } from '../../constants/theme';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -28,6 +29,41 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
 );
 
 export default function InsightsScreen() {
+  const [data, setData] = useState<any>(null);
+  const fetchInsights = async () => {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/api/logs/process?user_id=test-user",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sleep_duration: 6,
+          sleep_quality: 2,
+          mood: 3,
+          energy_level: 2,
+          stress_level: 2,
+          exercise_minutes: 30,
+          water_intake: 2,
+          caffeine_intake: 1,
+          notes: "test"
+        }),
+      }
+    );
+
+    const result = await response.json();
+    console.log("API RESPONSE:", result);
+    setData(result);
+
+  } catch (error) {
+    console.error("API Error:", error);
+  }
+};
+useEffect(() => {
+  fetchInsights();
+}, []);
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
