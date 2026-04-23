@@ -5,7 +5,7 @@ import { BarChart, LineChart } from 'react-native-chart-kit';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
-
+import { supabase } from "../../lib/supabase";
 const screenWidth = Dimensions.get('window').width;
 
 const chartConfig = {
@@ -27,144 +27,191 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
     <Text style={[styles.metricStatus, { color }]}>{status}</Text>
   </View>
 );
-
-export default function InsightsScreen() {
-  const [data, setData] = useState<any>(null);
-  const fetchInsights = async () => {
+    export default function InsightsScreen() {
+      const [logs, setLogs] = useState<any[]>([]);
+      const [loading, setLoading] = useState(true);
+  const fetchLogs = async () => {
   try {
-    const response = await fetch(
-      "http://127.0.0.1:8000/api/logs/process?user_id=test-user",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sleep_duration: 6,
-          sleep_quality: 2,
-          mood: 3,
-          energy_level: 2,
-          stress_level: 2,
-          exercise_minutes: 30,
-          water_intake: 2,
-          caffeine_intake: 1,
-          notes: "test"
-        }),
-      }
-    );
+    console.log("FETCHING FROM SUPABASE...");
 
-    const result = await response.json();
-    console.log("API RESPONSE:", result);
-    setData(result);
+    const { data, error } = await supabase
+      .from("daily_logs")
+      .select("*")
+      .order("date", { ascending: true });
 
-  } catch (error) {
-    console.error("API Error:", error);
+    if (error) {
+      console.log("SUPABASE ERROR:", error);
+      return;
+    }
+
+    console.log("SUPABASE DATA:", data);
+
+    setLogs(data || []);
+  } catch (err) {
+    console.log("ERROR:", err);
+  } finally {
+    setLoading(false);
   }
-};
-useEffect(() => {
-  fetchInsights();
-}, []);
+
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
+  if (loading) {
+    return <Text>Loading logs...</Text>;
+  }
+
+  // 🔥 PROCESS DATA FOR CHARTS
+  const labels = logs.map((item) => item.date || "");
+  const sleepData = logs.map(item => item.sleep_hours || 0);
+  const screenData = logs.map((item) => item.screen_time || 0);
+  const stepsData = logs.map((item) => item.steps || 0);
+  const sittingData = logs.map(item => item.sitting_time || 0);
+  // 🔥 LATEST VALUES (for cards)
+  const latest = logs[logs.length - 1] || {};
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
+        
         <GradientBackground style={styles.headerGradient}>
           <Text style={styles.title}>Behavior Insights</Text>
           <Text style={styles.subtitle}>Weekly trends and patterns</Text>
-          
+
           <View style={styles.metricsGrid}>
-            <MetricCard 
-              title="Sleep Pattern" value="7.1 hrs" status="Good" 
-              icon="moon-outline" color={theme.colors.success} 
+            <MetricCard
+              title="Sleep Pattern"
+              value={`${latest.sleep_hours || 0} hrs`}
+              status="Trend"
+              icon="moon-outline"
+              color={theme.colors.primary}
             />
-            <MetricCard 
-              title="Screen Time" value="7.4 hrs" status="High" 
-              icon="phone-portrait-outline" color={theme.colors.danger} 
+
+            <MetricCard
+              title="Screen_Time"
+              value={`${latest.screen_time|| 0} hrs`}
+              status="Trend"
+              icon="phone-portrait-outline"
+              color={theme.colors.danger}
             />
-            <MetricCard 
-              title="Daily Steps" value="7,264" status="Moderate" 
-              icon="pulse-outline" color={theme.colors.warning} 
+
+            <MetricCard
+              title="Daily Steps"
+              value={`${latest.steps|| 0}`}
+              status="Trend"
+              icon="pulse-outline"
+              color={theme.colors.warning}
             />
           </View>
         </GradientBackground>
 
+        {/* SUMMARY (BASED ON DATA, NOT ML) */}
         <View style={styles.summaryContainer}>
           <Card style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Weekly Summary</Text>
-            <View style={styles.summaryItem}>
-              <View style={[styles.dot, { backgroundColor: theme.colors.success }]} />
-              <Text style={styles.summaryText}>Sleep quality improved by 12%</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <View style={[styles.dot, { backgroundColor: theme.colors.danger }]} />
-              <Text style={styles.summaryText}>Screen time increased by 18%</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <View style={[styles.dot, { backgroundColor: theme.colors.warning }]} />
-              <Text style={styles.summaryText}>Activity level remains moderate</Text>
-            </View>
+
+            <Text style={styles.summaryText}>
+              You have {logs.length} days of activity recorded.
+            </Text>
+
+            <Text style={styles.summaryText}>
+              Avg Sleep:{" "}
+              {(
+                sleepData.reduce((a, b) => a + b, 0) /
+                (sleepData.length || 1)
+              ).toFixed(1)}{" "}
+              hrs
+            </Text>
+
+            <Text style={styles.summaryText}>
+              Avg Screen Time:{" "}
+              {(
+                screenData.reduce((a, b) => a + b, 0) /
+                (screenData.length || 1)
+              ).toFixed(1)}{" "}
+              hrs
+            </Text>
           </Card>
         </View>
       </View>
 
+      {/* CONTENT */}
       <View style={styles.content}>
+        
+        {/* SLEEP GRAPH */}
         <Card style={styles.chartCard}>
-          <View style={styles.chartHeader}>
-            <View style={styles.chartTitleRow}>
-              <Ionicons name="moon" size={20} color={theme.colors.primary} />
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.chartTitle}>Sleep Pattern</Text>
-                <Text style={styles.chartSub}>Last 7 days</Text>
-              </View>
-            </View>
-            <View style={styles.badge}>
-              <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
-              <Text style={styles.badgeText}>This week</Text>
-            </View>
-          </View>
+          <Text style={styles.chartTitle}>Sleep Pattern</Text>
+
           <LineChart
             data={{
-              labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-              datasets: [{ data: [6.5, 7.0, 7.2, 6.8, 7.5, 8.2, 8.0] }]
+              labels: labels,
+              datasets: [{ data: sleepData }]
             }}
             width={screenWidth - 80}
             height={180}
             chartConfig={chartConfig}
             bezier
             style={styles.chart}
-            withPointers={false}
           />
         </Card>
 
+        {/* SCREEN TIME GRAPH */}
         <Card style={styles.chartCard}>
-          <View style={styles.chartHeader}>
-            <View style={styles.chartTitleRow}>
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.dangerLight }]}>
-                 <Ionicons name="phone-portrait" size={16} color={theme.colors.danger} />
-              </View>
-              <View style={{ marginLeft: 8 }}>
-                <Text style={styles.chartTitle}>Screen Time</Text>
-                <Text style={styles.chartSub}>Daily usage hours</Text>
-              </View>
-            </View>
-          </View>
+          <Text style={styles.chartTitle}>Screen Time</Text>
+
           <BarChart
             data={{
-              labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-              datasets: [{ data: [5.8, 6.2, 6.0, 7.5, 8.5, 7.2, 6.5] }]
+              labels: labels,
+              datasets: [{ data: screenData }]
             }}
             width={screenWidth - 80}
             height={180}
-            chartConfig={{...chartConfig, color: () => theme.colors.danger }}
+            chartConfig={{
+              ...chartConfig,
+              color: () => theme.colors.danger
+            }}
             style={styles.chart}
-            yAxisLabel=""
-            yAxisSuffix=""
           />
         </Card>
+        <Card style={styles.chartCard}>
+  <Text style={styles.chartTitle}>Activity Trend</Text>
 
+  <LineChart
+    data={{
+      labels: labels,
+      datasets: [{ data: stepsData }]
+    }}
+    width={screenWidth - 80}
+    height={180}
+    chartConfig={chartConfig}
+    bezier
+    style={styles.chart}
+  />
+</Card>
+<Card style={styles.chartCard}>
+  <Text style={styles.chartTitle}>Sitting Time</Text>
+
+  <BarChart
+    data={{
+      labels: labels,
+      datasets: [{ data: sittingData }]
+    }}
+    width={screenWidth - 80}
+    height={180}
+    chartConfig={chartConfig}
+    style={styles.chart}
+  />
+</Card>
       </View>
     </ScrollView>
   );
+
+  
 }
+
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
