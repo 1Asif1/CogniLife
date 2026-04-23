@@ -233,9 +233,9 @@ export default function ProfileScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Account</Text>
-          <SettingItem icon="notifications-outline" title="Notifications" subtitle="On" />
-          <SettingItem icon="lock-closed-outline" title="Privacy & Security" />
-          <SettingItem icon="shield-checkmark-outline" title="Data Sharing" subtitle="Limited" showBorder={false} />
+          <SettingItem icon="notifications-outline" title="Notifications" subtitle="Manage" onPress={() => router.push('/notifications-settings')} />
+          <SettingItem icon="lock-closed-outline" title="Privacy & Security" onPress={() => router.push('/privacy-security')} />
+          <SettingItem icon="apps-outline" title="App Permissions" subtitle="Review" showBorder={false} onPress={() => router.push('/app-permissions')} />
         </Card>
 
         <Card style={styles.sectionCard}>

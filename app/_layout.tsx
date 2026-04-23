@@ -49,6 +49,9 @@ function InitialLayout() {
       <Stack.Screen name="daily-log" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="help-center" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="contact-doctors" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="notifications-settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="privacy-security" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="app-permissions" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
