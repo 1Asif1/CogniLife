@@ -21,8 +21,8 @@ const InfoRow = ({ icon, text }: { icon: any; text: string }) => (
   </View>
 );
 
-const SettingItem = ({ icon, title, subtitle, showBorder = true }: any) => (
-  <TouchableOpacity style={[styles.settingItem, showBorder && styles.settingBorder]} activeOpacity={0.7}>
+const SettingItem = ({ icon, title, subtitle, showBorder = true, onPress }: any) => (
+  <TouchableOpacity style={[styles.settingItem, showBorder && styles.settingBorder]} activeOpacity={0.7} onPress={onPress}>
     <View style={styles.settingIcon}>
       <Ionicons name={icon} size={20} color={theme.colors.textSecondary} />
     </View>
@@ -240,8 +240,8 @@ export default function ProfileScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Support</Text>
-          <SettingItem icon="help-circle-outline" title="Help Center" />
-          <SettingItem icon="mail-outline" title="Contact Support" showBorder={false} />
+          <SettingItem icon="help-circle-outline" title="Help Center" onPress={() => router.push('/help-center')} />
+          <SettingItem icon="medkit-outline" title="Contact Doctors" showBorder={false} onPress={() => router.push('/contact-doctors')} />
         </Card>
 
         <TouchableOpacity style={styles.logoutCard} onPress={handleLogout}>

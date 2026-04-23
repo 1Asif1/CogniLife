@@ -47,6 +47,8 @@ function InitialLayout() {
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="daily-log" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="help-center" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="contact-doctors" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
