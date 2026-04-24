@@ -1,12 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 
+// LAN IP for mobile device testing
+const LAN_IP = "192.168.29.161";
+
+const API_BASE_URL =
+  Platform.OS === "web"
+    ? "http://localhost:8001"
+    : `http://${LAN_IP}:8001`;
 
 // Simple mock for a circular progress until react-native-svg is fully handled
 const CircularProgressMock = ({ score }: { score: number }) => (
@@ -41,14 +49,121 @@ const InsightAlert = ({ text, icon, color, bgColor }: any) => (
 export default function HomeScreen() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch ML recommendations whenever the Home tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (userProfile?.id || user?.id) {
+        fetchDashboardData();
+      } else {
+        setLoading(false);
+      }
+    }, [userProfile?.id, user?.id])
+  );
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const userId = userProfile?.id || user?.id;
+      if (!userId) return;
+
+      const url = `${API_BASE_URL}/api/users/${userId}/action-plan`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(data.recommendations || []);
+      }
+    } catch (err) {
+      console.error("[Home] Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-
     if (hour < 12) return "Good Morning";
     else if (hour < 17) return "Good Afternoon";
     else return "Good Evening";
   };
+
+  // Helper to map ML recommendations to risk cards
+  const getRiskCardProps = (id: string, defaultTitle: string, defaultIcon: string) => {
+    const rec = recommendations.find((r: any) => r.id === id);
+    if (!rec) {
+      return {
+        title: defaultTitle,
+        percent: 12,
+        trend: "↓ Low Risk",
+        icon: defaultIcon,
+        color: theme.colors.success,
+        bgColor: theme.colors.successLight,
+      };
+    }
+    
+    if (rec.priority === "CRITICAL") {
+      return {
+        title: defaultTitle,
+        percent: 85,
+        trend: "↑ High Risk",
+        icon: rec.icon || defaultIcon,
+        color: theme.colors.danger,
+        bgColor: theme.colors.dangerLight,
+      };
+    }
+    
+    return {
+      title: defaultTitle,
+      percent: 45,
+      trend: "→ Medium Risk",
+      icon: rec.icon || defaultIcon,
+      color: theme.colors.warning,
+      bgColor: theme.colors.warningLight,
+    };
+  };
+
+  // Calculate an overall health score based on the risks
+  const calculateHealthScore = () => {
+    let score = 95;
+    recommendations.forEach(rec => {
+       if (rec.priority === "CRITICAL") score -= 15;
+       else if (rec.priority === "HIGH") score -= 8;
+    });
+    return Math.max(0, Math.min(100, score));
+  };
+
+  // Get AI insights from the top recommendations
+  const getInsights = () => {
+    if (recommendations.length === 0) {
+      return [{ 
+        text: "Your health metrics look great! Keep up the good habits.", 
+        icon: "checkmark-circle", 
+        color: theme.colors.success, 
+        bgColor: theme.colors.successLight 
+      }];
+    }
+    
+    return recommendations.slice(0, 3).map(rec => ({
+       text: rec.impact || rec.description,
+       icon: rec.icon,
+       color: rec.color,
+       bgColor: rec.bgColor
+    }));
+  };
+
+  const healthScore = calculateHealthScore();
+  const insights = getInsights();
+  const diabetesProps = getRiskCardProps('diabetesrisk', 'Diabetes Risk', 'water-outline');
+  const anemiaProps = getRiskCardProps('anemiarisk', 'Anemia Risk', 'heart-half-outline');
+  const pcosProps = getRiskCardProps('pcosrisk', 'PCOS Risk', 'fitness-outline');
+  const fatigueProps = getRiskCardProps('fatigue', 'Fatigue Level', 'moon-outline');
 
   return (
     <ScrollView style={styles.container} bounces={false}>
@@ -75,12 +190,12 @@ export default function HomeScreen() {
             <View style={styles.scoreInfo}>
               <Text style={styles.scoreLabel}>Overall Health Score</Text>
               <View style={styles.scoreRow}>
-                <Text style={styles.scoreValue}>78</Text>
+                <Text style={styles.scoreValue}>{healthScore}</Text>
                 <Text style={styles.scoreSub}>/100</Text>
               </View>
-              <Text style={styles.scoreTrend}>📈 +5 from last week</Text>
+              <Text style={styles.scoreTrend}>Based on your latest data</Text>
             </View>
-            <CircularProgressMock score={78} />
+            <CircularProgressMock score={healthScore} />
           </Card>
         </View>
       </View>
@@ -93,37 +208,30 @@ export default function HomeScreen() {
 
         <View style={styles.grid}>
           <View style={styles.gridColumn}>
-            <RiskCard 
-              title="Diabetes Risk" percent={23} trend="↓ Decreasing" 
-              icon="water-outline" color={theme.colors.success} bgColor={theme.colors.successLight} />
-            <RiskCard 
-              title="Anemia Risk" percent={15} trend="→ Stable" 
-              icon="heart-half-outline" color={theme.colors.success} bgColor={theme.colors.successLight} />
+            <RiskCard {...diabetesProps} />
+            <RiskCard {...anemiaProps} />
           </View>
           <View style={styles.gridColumn}>
-            <RiskCard 
-              title="PCOS Risk" percent={42} trend="↑ Increasing" 
-              icon="fitness-outline" color={theme.colors.warning} bgColor={theme.colors.warningLight} />
-            <RiskCard 
-              title="Digital Addiction" percent={68} trend="↑ Increasing" 
-              icon="phone-portrait-outline" color={theme.colors.danger} bgColor={theme.colors.dangerLight} />
+            <RiskCard {...pcosProps} />
+            <RiskCard {...fatigueProps} />
           </View>
         </View>
 
         <View style={[styles.sectionHeader, { marginTop: 32 }]}>
           <Ionicons name="sparkles-outline" size={20} color={theme.colors.primary} />
           <Text style={styles.sectionTitle}>AI Insights</Text>
+          {loading && <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />}
         </View>
 
-        <InsightAlert 
-          text="Late-night screen usage affecting your sleep quality"
-          icon="phone-portrait-outline" color={theme.colors.danger} bgColor={theme.colors.dangerLight} />
-        <InsightAlert 
-          text="Great progress! 20% increase in daily activity this week"
-          icon="trending-up-outline" color={theme.colors.success} bgColor={theme.colors.successLight} />
-        <InsightAlert 
-          text="High dopamine activities detected - consider balance"
-          icon="bulb-outline" color={theme.colors.secondary} bgColor="#EFF6FF" />
+        {insights.map((insight, index) => (
+          <InsightAlert 
+            key={index}
+            text={insight.text}
+            icon={insight.icon} 
+            color={insight.color} 
+            bgColor={insight.bgColor} 
+          />
+        ))}
 
       </View>
     </ScrollView>

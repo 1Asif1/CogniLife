@@ -313,11 +313,15 @@ async def get_action_plan(user_id: str):
         latest_log = logs[0]
         latest_prediction = predictions[0] if predictions else None
         
+        # Also fetch the user profile for feature engineering (height, weight, gender)
+        user_data = await supabase_client.get_user(user_id)
+        
         # Generate action plan recommendations based on ML models
         action_plan = ml_service.generate_action_plan(
             log_data=latest_log,
             prediction_data=latest_prediction,
-            insights_data=insights
+            insights_data=insights,
+            user_data=user_data
         )
         
         logger.info(f"Generated action plan for user {user_id} with {len(action_plan)} recommendations")

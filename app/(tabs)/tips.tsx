@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { Button } from "../../components/Button";
@@ -14,12 +16,14 @@ import { GradientBackground } from "../../components/GradientBackground";
 import { theme } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
 
+// Your machine's LAN IP — the backend must be running on 0.0.0.0:8001
+// so it's reachable from both emulators and physical devices via this IP.
+const LAN_IP = "192.168.29.161";
+
 const API_BASE_URL =
-  Platform.OS === "android"
-    ? "http://10.0.2.2:8001"
-    : Platform.OS === "web"
-      ? "http://localhost:8001"
-      : "http://192.168.1.4:8001";
+  Platform.OS === "web"
+    ? "http://localhost:8001"
+    : `http://${LAN_IP}:8001`;
 
 const FilterTag = ({ label, color }: { label: string; color: string }) => (
   <View style={[styles.filterTag, { borderColor: color }]}>
@@ -65,12 +69,17 @@ const RecommendationCard = ({
       />
       <Text style={styles.impactText}>{impact}</Text>
     </View>
-    <Button
-      title={isLoading ? "Starting..." : "Start This Goal"}
-      onPress={onPress}
-      disabled={isLoading}
-      style={styles.recButton}
-    />
+    {isLoading ? (
+      <View style={[styles.recButton, styles.disabledButton]}>
+        <Text style={styles.disabledButtonText}>Starting...</Text>
+      </View>
+    ) : (
+      <Button
+        title="Start This Goal"
+        onPress={onPress}
+        style={styles.recButton}
+      />
+    )}
   </Card>
 );
 
@@ -82,11 +91,14 @@ export default function TipsScreen() {
   const [startingGoal, setStartingGoal] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (userProfile?.id || user?.id) {
-      fetchRecommendations();
-    }
-  }, [userProfile?.id, user?.id]);
+  // Re-fetch every time the Tips tab is focused (tapped)
+  useFocusEffect(
+    useCallback(() => {
+      if (userProfile?.id || user?.id) {
+        fetchRecommendations();
+      }
+    }, [userProfile?.id, user?.id])
+  );
 
   const fetchRecommendations = async () => {
     try {
@@ -104,7 +116,12 @@ export default function TipsScreen() {
       const url = `${API_BASE_URL}/api/users/${userId}/action-plan`;
       console.log("[Tips] Fetching from:", url);
 
-      const response = await fetch(url);
+      // Add a timeout for mobile networks to avoid hanging indefinitely
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
 
       console.log("[Tips] Response status:", response.status);
 
@@ -119,7 +136,11 @@ export default function TipsScreen() {
       setRecommendations(data.recommendations || []);
     } catch (err: any) {
       console.error("[Tips] Fetch error:", err);
-      setError(err.message || "Failed to fetch recommendations");
+      const msg =
+        err.name === "AbortError"
+          ? `Request timed out. Make sure the backend is running and reachable at ${API_BASE_URL}`
+          : err.message || "Failed to fetch recommendations";
+      setError(msg);
       setRecommendations([]);
     } finally {
       setLoading(false);
@@ -192,9 +213,9 @@ export default function TipsScreen() {
             <View style={styles.actionPlanHeader}>
               <View style={styles.infoIcon}>
                 <Ionicons
-                  name="information-circle-outline"
+                  name="bulb-outline"
                   size={24}
-                  color={theme.colors.secondary}
+                  color={theme.colors.primary}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -280,76 +301,121 @@ export default function TipsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  topSection: { position: "relative", marginBottom: 50 },
-  headerGradient: { height: 200, paddingTop: 60, paddingHorizontal: 24 },
-  title: { fontSize: 28, fontWeight: "700", color: "#FFF", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "rgba(255,255,255,0.8)" },
+  topSection: { position: "relative", marginBottom: 60 },
+  headerGradient: { height: 220, paddingTop: 60, paddingHorizontal: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  title: { fontSize: 32, fontWeight: "700", color: "#FFF", marginBottom: 8 },
+  subtitle: { fontSize: 15, color: "rgba(255,255,255,0.9)", fontWeight: "500" },
   actionPlanContainer: {
     position: "absolute",
-    bottom: -40,
+    bottom: -45,
     left: 24,
     right: 24,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   actionPlanCard: {
     padding: 20,
-    borderColor: theme.colors.warning,
-    borderWidth: 1,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    borderWidth: 0,
   },
   actionPlanHeader: { flexDirection: "row", alignItems: "flex-start" },
-  infoIcon: { marginRight: 16, marginTop: 2 },
-  actionPlanTitle: { ...theme.typography.h3, marginBottom: 8 },
+  infoIcon: { 
+    marginRight: 16, 
+    marginTop: 2, 
+    backgroundColor: theme.colors.primaryLight + "20", 
+    padding: 10, 
+    borderRadius: 14 
+  },
+  actionPlanTitle: { ...theme.typography.h2, marginBottom: 6 },
   actionPlanDesc: {
     color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 22,
   },
-  content: { paddingTop: 10, paddingBottom: 24 },
+  content: { paddingTop: 20, paddingBottom: 40 },
   filtersContainer: { flexDirection: "row", gap: 12, marginBottom: 24 },
   filterTag: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    backgroundColor: "#FFF",
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    backgroundColor: theme.colors.surface,
   },
   filterDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  filterLabel: { fontSize: 13, fontWeight: "600" },
+  filterLabel: { fontSize: 14, fontWeight: "600" },
   recList: { paddingHorizontal: 24, gap: 16 },
-  recCard: { padding: 20, borderColor: theme.colors.border, borderWidth: 1 },
+  recCard: { 
+    padding: 20, 
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   recHeader: { flexDirection: "row", marginBottom: 16 },
   recIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
   },
-  recTitleContainer: { flex: 1 },
+  recTitleContainer: { flex: 1, justifyContent: "center" },
   recTitleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  recTitle: { flex: 1, ...theme.typography.h3, paddingRight: 8 },
-  priorityBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  priorityText: { fontSize: 10, fontWeight: "700" },
-  recDesc: { fontSize: 13, color: theme.colors.textSecondary, lineHeight: 20 },
-  recImpact: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  recTitle: { flex: 1, ...theme.typography.h3, fontSize: 17, paddingRight: 8 },
+  priorityBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  priorityText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  recDesc: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 22 },
+  recImpact: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    marginBottom: 20,
+    backgroundColor: theme.colors.dangerLight + "50",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: "flex-start"
+  },
   impactText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
-  recButton: { paddingVertical: 12 },
+  recButton: { paddingVertical: 14, borderRadius: 14 },
+  disabledButton: {
+    backgroundColor: theme.colors.border,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+  },
+  disabledButtonText: {
+    color: theme.colors.textSecondary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
   loadingContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 15,
     color: theme.colors.textSecondary,
+    fontWeight: "500",
   },
   errorContainer: {
     alignItems: "center",
@@ -357,34 +423,35 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 24,
   },
-  errorText: { fontSize: 14, color: theme.colors.danger, marginBottom: 12 },
+  errorText: { fontSize: 15, color: theme.colors.danger, marginBottom: 16, textAlign: "center" },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     color: theme.colors.text,
     marginBottom: 8,
   },
   emptySubtext: {
-    fontSize: 13,
+    fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: "center",
+    lineHeight: 20,
   },
   successMessage: {
     marginBottom: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#D1FAE5",
-    borderRadius: 8,
+    paddingVertical: 14,
+    backgroundColor: theme.colors.successLight,
+    borderRadius: 12,
     borderLeftWidth: 4,
     borderLeftColor: theme.colors.success,
   },
   successText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     color: "#065F46",
   },
