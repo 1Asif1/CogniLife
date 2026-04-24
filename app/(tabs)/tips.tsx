@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,11 @@ import { Card } from "../../components/Card";
 import { GradientBackground } from "../../components/GradientBackground";
 import { theme } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
+
+const API_BASE_URL =
+  Platform.OS === "android"
+    ? "http://10.0.2.2:8001"
+    : "http://localhost:8001";
 
 const FilterTag = ({ label, color }: { label: string; color: string }) => (
   <View style={[styles.filterTag, { borderColor: color }]}>
@@ -93,7 +99,7 @@ export default function TipsScreen() {
         return;
       }
 
-      const url = `http://localhost:8000/api/users/${userId}/action-plan`;
+      const url = `${API_BASE_URL}/api/users/${userId}/action-plan`;
       console.log("[Tips] Fetching from:", url);
 
       const response = await fetch(url);
@@ -129,7 +135,7 @@ export default function TipsScreen() {
       setError(null);
 
       const response = await fetch(
-        `http://localhost:8000/api/users/${user.id}/goals`,
+        `${API_BASE_URL}/api/users/${user.id}/goals`,
         {
           method: "POST",
           headers: {
