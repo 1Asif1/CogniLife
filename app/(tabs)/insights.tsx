@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   metricTitle: { ...theme.typography.small, marginBottom: 4 },
   metricValue: { fontSize: 16, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
   metricStatus: { fontSize: 12, fontWeight: '600' },
-  summaryContainer: { bottom: 25, left: 24, right: 24 },
+  summaryContainer: { width: '95%', alignSelf: 'center' ,shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, borderRadius: 16, marginTop: -40 },
   summaryCard: { backgroundColor: theme.colors.primary, padding: 20 },
   summaryTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', marginBottom: 16 },
   summaryItem: { flexDirection: 'row', alignItems: 'center' },
