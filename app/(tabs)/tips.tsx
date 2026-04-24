@@ -17,7 +17,9 @@ import { useAuth } from "../../context/AuthContext";
 const API_BASE_URL =
   Platform.OS === "android"
     ? "http://10.0.2.2:8001"
-    : "http://localhost:8001";
+    : Platform.OS === "web"
+      ? "http://localhost:8001"
+      : "http://192.168.1.4:8001";
 
 const FilterTag = ({ label, color }: { label: string; color: string }) => (
   <View style={[styles.filterTag, { borderColor: color }]}>

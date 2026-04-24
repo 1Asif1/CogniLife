@@ -337,7 +337,12 @@ async def get_action_plan(user_id: str):
 
 
 @app.post("/api/users/{user_id}/goals", status_code=status.HTTP_201_CREATED, tags=["Goals"])
-async def create_user_goal(user_id: str, recommendation_id: str, title: str, status: str = "active"):
+async def create_user_goal(
+    user_id: str,
+    recommendation_id: str = None,
+    title: str = None,
+    status: str = "active"
+):
     """Create a new user goal from a recommendation"""
     try:
         # Verify user exists
@@ -354,11 +359,8 @@ async def create_user_goal(user_id: str, recommendation_id: str, title: str, sta
             "recommendation_id": recommendation_id,
             "title": title,
             "status": status,
-            "created_at": None,
-            "completed_at": None
         }
         
-        # This would be a new table method, for now we'll just return success
         logger.info(f"User {user_id} started goal: {title}")
         
         return {
@@ -371,6 +373,40 @@ async def create_user_goal(user_id: str, recommendation_id: str, title: str, sta
         raise
     except Exception as e:
         logger.error(f"Error creating goal: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/api/users/{user_id}/goals", tags=["Goals"])
+async def get_user_goals(user_id: str):
+    """Get all goals for a user"""
+    try:
+        # Verify user exists
+        user = await supabase_client.get_user(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Mock goals data - in production, fetch from database
+        # For now, returning empty list as no persistent storage is implemented
+        goals = []
+        
+        logger.info(f"Retrieved goals for user {user_id}")
+        
+        return {
+            "success": True,
+            "goals": goals,
+            "total": len(goals)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving goals: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
