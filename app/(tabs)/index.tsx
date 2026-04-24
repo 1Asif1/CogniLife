@@ -7,6 +7,7 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { CustomModal } from '../../components/CustomModal';
 
 // LAN IP for mobile device testing
 const LAN_IP = "192.168.29.161";
@@ -25,8 +26,12 @@ const CircularProgressMock = ({ score }: { score: number }) => (
   </View>
 );
 
-const RiskCard = ({ title, percent, trend, icon, color, bgColor }: any) => (
-  <View style={[styles.riskCard, { backgroundColor: bgColor }]}>
+const RiskCard = ({ title, percent, trend, icon, color, bgColor, onPress }: any) => (
+  <TouchableOpacity 
+    style={[styles.riskCard, { backgroundColor: bgColor }]} 
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
     <View style={styles.riskHeader}>
       <View style={[styles.riskIcon, { backgroundColor: color + '20' }]}>
         <Ionicons name={icon} size={20} color={color} />
@@ -36,21 +41,38 @@ const RiskCard = ({ title, percent, trend, icon, color, bgColor }: any) => (
     <Text style={styles.riskTitle}>{title}</Text>
     <Text style={[styles.riskPercent, { color }]}>{percent}%</Text>
     <Text style={[styles.riskTrend, { color }]}>{trend}</Text>
-  </View>
+  </TouchableOpacity>
 );
 
-const InsightAlert = ({ text, icon, color, bgColor }: any) => (
-  <View style={[styles.insightAlert, { backgroundColor: bgColor, borderColor: color + '30' }]}>
-    <Ionicons name={icon} size={20} color={color} style={{ marginRight: 12 }} />
-    <Text style={styles.insightText}>{text}</Text>
-  </View>
-);
+const InsightAlert = ({ text, icon, color, bgColor }: any) => {
+  const points = text.includes('; ') ? text.split('; ') : [text];
+  
+  return (
+    <View style={[styles.insightAlert, { backgroundColor: bgColor, borderColor: color + '20' }]}>
+      <View style={[styles.insightIconContainer, { backgroundColor: color + '15' }]}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <View style={styles.insightTextContainer}>
+        {points.map((point: string, idx: number) => (
+          <Text key={idx} style={[styles.insightText, { color: theme.colors.text }]}>
+            {points.length > 1 ? `• ${point}` : point}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedRisk, setSelectedRisk] = useState<{ visible: boolean; title: string; message: string }>({
+    visible: false,
+    title: "",
+    message: "",
+  });
 
   // Fetch ML recommendations whenever the Home tab is focused
   useFocusEffect(
@@ -94,7 +116,6 @@ export default function HomeScreen() {
     else return "Good Evening";
   };
 
-  // Helper to map ML recommendations to risk cards
   const getRiskCardProps = (id: string, defaultTitle: string, defaultIcon: string) => {
     const rec = recommendations.find((r: any) => r.id === id);
     if (!rec) {
@@ -105,7 +126,21 @@ export default function HomeScreen() {
         icon: defaultIcon,
         color: theme.colors.success,
         bgColor: theme.colors.successLight,
+        onPress: () => setSelectedRisk({
+          visible: true,
+          title: defaultTitle,
+          message: "Your risk is currently low based on your recent health logs and AI analysis. Keep up the good work!"
+        })
       };
+    }
+
+    // Format the reason text nicely (replace semicolons with bullets)
+    let reasonText = rec.description || "";
+    if (reasonText.includes("; ")) {
+      const parts = reasonText.split(". ");
+      const riskLevel = parts[0];
+      const reasons = parts.slice(1).join(". ").replace(/\.$/, "").split("; ");
+      reasonText = `${riskLevel}.\n\nWhy?\n` + reasons.map((r: string) => `• ${r}`).join("\n");
     }
     
     if (rec.priority === "CRITICAL") {
@@ -116,6 +151,11 @@ export default function HomeScreen() {
         icon: rec.icon || defaultIcon,
         color: theme.colors.danger,
         bgColor: theme.colors.dangerLight,
+        onPress: () => setSelectedRisk({
+          visible: true,
+          title: defaultTitle,
+          message: reasonText
+        })
       };
     }
     
@@ -126,6 +166,11 @@ export default function HomeScreen() {
       icon: rec.icon || defaultIcon,
       color: theme.colors.warning,
       bgColor: theme.colors.warningLight,
+      onPress: () => setSelectedRisk({
+        visible: true,
+        title: defaultTitle,
+        message: reasonText
+      })
     };
   };
 
@@ -234,20 +279,38 @@ export default function HomeScreen() {
         ))}
 
       </View>
+
+      <CustomModal
+        visible={selectedRisk.visible}
+        title={selectedRisk.title}
+        message={selectedRisk.message}
+        onConfirm={() => setSelectedRisk((prev) => ({ ...prev, visible: false }))}
+        showCancel={false}
+        confirmText="Got it"
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  topSection: { position: 'relative', marginBottom: 60 },
+  topSection: { marginBottom: 10 },
   headerGradient: { height: 260, paddingBottom: 40 },
   headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, paddingTop: 40 },
   greeting: { fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
   name: { fontSize: 32, fontWeight: '700', color: '#FFF' },
   logButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   logButtonText: { color: '#FFF', fontWeight: '600' },
-  scoreCardContainer: { position: 'absolute', bottom: -50, left: 24, right: 24 },
+  scoreCardContainer: { 
+    marginTop: -100, 
+    marginHorizontal: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 10,
+  },
   scoreCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   scoreInfo: { flex: 1 },
   scoreLabel: { ...theme.typography.small, color: theme.colors.textSecondary, marginBottom: 8 },
@@ -269,6 +332,27 @@ const styles = StyleSheet.create({
   riskTitle: { ...theme.typography.small, fontWeight: '600', marginBottom: 4 },
   riskPercent: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   riskTrend: { fontSize: 12, fontWeight: '600' },
-  insightAlert: { flexDirection: 'row', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12, alignItems: 'center' },
-  insightText: { flex: 1, fontSize: 14, color: theme.colors.text, lineHeight: 20 },
+  insightAlert: { 
+    flexDirection: 'row', 
+    padding: 16, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    marginBottom: 12, 
+    alignItems: 'flex-start' 
+  },
+  insightIconContainer: {
+    padding: 8,
+    borderRadius: 12,
+    marginRight: 16,
+  },
+  insightTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 2,
+  },
+  insightText: { 
+    fontSize: 14, 
+    lineHeight: 22,
+    fontWeight: '500',
+  },
 });
