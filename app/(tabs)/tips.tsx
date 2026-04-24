@@ -42,46 +42,80 @@ const RecommendationCard = ({
   bgColor,
   onPress,
   isLoading,
-}: any) => (
-  <Card style={styles.recCard}>
-    <View style={styles.recHeader}>
-      <View style={[styles.recIcon, { backgroundColor: bgColor }]}>
-        <Ionicons name={icon} size={24} color={color} />
+}: any) => {
+  // Parse description: "Risk level: High. Reason 1; Reason 2."
+  const descParts = desc.split(". ");
+  const riskLevelText = descParts[0];
+  const reasonsText = descParts.slice(1).join(". ").replace(/\.$/, "");
+  const reasons = reasonsText ? reasonsText.split("; ") : [];
+
+  // Parse impact: "Action 1; Action 2"
+  const impacts = impact ? impact.split("; ") : [];
+
+  return (
+    <Card style={styles.recCard}>
+      <View style={styles.recHeader}>
+        <View style={[styles.recIcon, { backgroundColor: bgColor }]}>
+          <Ionicons name={icon} size={28} color={color} />
+        </View>
+        <View style={styles.recTitleContainer}>
+          <View style={styles.recTitleRow}>
+            <Text style={styles.recTitle}>{title}</Text>
+            <View
+              style={[styles.priorityBadge, { backgroundColor: color + "15" }]}
+            >
+              <Text style={[styles.priorityText, { color }]}>{priority}</Text>
+            </View>
+          </View>
+          
+          {reasons.length > 0 ? (
+            <View style={styles.reasonsList}>
+              {reasons.map((reason: string, idx: number) => (
+                <View key={idx} style={styles.reasonItem}>
+                  <View style={[styles.reasonDot, { backgroundColor: color }]} />
+                  <Text style={styles.recDesc}>{reason}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.recDesc}>{desc}</Text>
+          )}
+        </View>
       </View>
-      <View style={styles.recTitleContainer}>
-        <View style={styles.recTitleRow}>
-          <Text style={styles.recTitle}>{title}</Text>
-          <View
-            style={[styles.priorityBadge, { backgroundColor: color + "20" }]}
-          >
-            <Text style={[styles.priorityText, { color }]}>{priority}</Text>
+      
+      {impacts.length > 0 && (
+        <View style={styles.recImpact}>
+          <View style={styles.impactIconContainer}>
+            <Ionicons
+              name="sparkles"
+              size={16}
+              color={theme.colors.danger}
+            />
+          </View>
+          <View style={styles.impactList}>
+            {impacts.map((imp: string, idx: number) => (
+              <Text key={idx} style={styles.impactText}>
+                {imp}
+              </Text>
+            ))}
           </View>
         </View>
-        <Text style={styles.recDesc}>{desc}</Text>
-      </View>
-    </View>
-    <View style={styles.recImpact}>
-      <Ionicons
-        name="heart-outline"
-        size={14}
-        color={theme.colors.danger}
-        style={{ marginRight: 6 }}
-      />
-      <Text style={styles.impactText}>{impact}</Text>
-    </View>
-    {isLoading ? (
-      <View style={[styles.recButton, styles.disabledButton]}>
-        <Text style={styles.disabledButtonText}>Starting...</Text>
-      </View>
-    ) : (
-      <Button
-        title="Start This Goal"
-        onPress={onPress}
-        style={styles.recButton}
-      />
-    )}
-  </Card>
-);
+      )}
+
+      {isLoading ? (
+        <View style={[styles.recButton, styles.disabledButton]}>
+          <Text style={styles.disabledButtonText}>Starting...</Text>
+        </View>
+      ) : (
+        <Button
+          title="Start This Goal"
+          onPress={onPress}
+          style={styles.recButton}
+        />
+      )}
+    </Card>
+  );
+};
 
 export default function TipsScreen() {
   const { user, userProfile } = useAuth();
@@ -301,20 +335,19 @@ export default function TipsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  topSection: { position: "relative", marginBottom: 60 },
+  topSection: { marginBottom: 17 },
   headerGradient: { height: 220, paddingTop: 60, paddingHorizontal: 24, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   title: { fontSize: 32, fontWeight: "700", color: "#FFF", marginBottom: 8 },
   subtitle: { fontSize: 15, color: "rgba(255,255,255,0.9)", fontWeight: "500" },
   actionPlanContainer: {
-    position: "absolute",
-    bottom: -45,
-    left: 24,
-    right: 24,
+    marginTop: -60,
+    marginHorizontal: 24,
     shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
+    zIndex: 10,
   },
   actionPlanCard: {
     padding: 20,
@@ -381,18 +414,22 @@ const styles = StyleSheet.create({
   recTitle: { flex: 1, ...theme.typography.h3, fontSize: 17, paddingRight: 8 },
   priorityBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   priorityText: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  recDesc: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 22 },
+  recDesc: { flex: 1, fontSize: 13, color: theme.colors.textSecondary, lineHeight: 20 },
+  reasonsList: { marginTop: 4, gap: 6 },
+  reasonItem: { flexDirection: "row", alignItems: "flex-start", paddingRight: 8 },
+  reasonDot: { width: 5, height: 5, borderRadius: 3, marginTop: 7, marginRight: 8, opacity: 0.6 },
   recImpact: { 
     flexDirection: "row", 
-    alignItems: "center", 
+    alignItems: "flex-start", 
     marginBottom: 20,
-    backgroundColor: theme.colors.dangerLight + "50",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    alignSelf: "flex-start"
+    backgroundColor: theme.colors.dangerLight + "40",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
   },
-  impactText: { color: theme.colors.danger, fontSize: 13, fontWeight: "600" },
+  impactIconContainer: { marginRight: 10, marginTop: 2 },
+  impactList: { flex: 1, gap: 4 },
+  impactText: { color: theme.colors.danger, fontSize: 13.5, fontWeight: "600", lineHeight: 20 },
   recButton: { paddingVertical: 14, borderRadius: 14 },
   disabledButton: {
     backgroundColor: theme.colors.border,
