@@ -140,3 +140,86 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
   }
 }
 
+/**
+ * Get streak data: current streak, best streak, and total logs
+ */
+export async function getStreakData(userId: string): Promise<{ currentStreak: number; bestStreak: number; totalLogs: number }> {
+  try {
+    const { data, error } = await supabase
+      .from('daily_logs')
+      .select('date')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return { currentStreak: 0, bestStreak: 0, totalLogs: 0 };
+    }
+
+    const totalLogs = data.length;
+    let currentStreak = 0;
+    let bestStreak = 0;
+    let currentCount = 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const logDates = data.map(log => {
+      const parts = log.date.split('-');
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    });
+
+    let prevDate: Date | null = null;
+
+    // Calculate best streak and current streak
+    for (let i = 0; i < logDates.length; i++) {
+      const logDate = logDates[i];
+      if (prevDate) {
+        const diffTime = Math.abs(prevDate.getTime() - logDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+          currentCount++;
+        } else if (diffDays > 1) {
+          if (currentCount > bestStreak) bestStreak = currentCount;
+          currentCount = 1;
+        }
+      } else {
+        currentCount = 1;
+      }
+      prevDate = logDate;
+    }
+    if (currentCount > bestStreak) bestStreak = currentCount;
+
+    // Calculate current streak
+    // Check if the most recent log is from today or yesterday
+    if (logDates.length > 0) {
+      const mostRecent = logDates[0];
+      const diffTimeMostRecent = Math.abs(today.getTime() - mostRecent.getTime());
+      const diffDaysMostRecent = Math.floor(diffTimeMostRecent / (1000 * 60 * 60 * 24));
+      
+      if (diffDaysMostRecent <= 1) {
+         // The streak is still alive
+         let streak = 1;
+         for (let i = 0; i < logDates.length - 1; i++) {
+           const d1 = logDates[i];
+           const d2 = logDates[i + 1];
+           const diff = Math.abs(d1.getTime() - d2.getTime());
+           const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+           if (days === 1) {
+             streak++;
+           } else if (days > 1) {
+             break;
+           }
+         }
+         currentStreak = streak;
+      } else {
+         currentStreak = 0;
+      }
+    }
+
+    return { currentStreak, bestStreak, totalLogs };
+  } catch (error) {
+    console.error('Failed to fetch streak data:', error);
+    return { currentStreak: 0, bestStreak: 0, totalLogs: 0 };
+  }
+}
