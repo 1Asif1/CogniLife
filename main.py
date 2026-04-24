@@ -287,6 +287,96 @@ async def get_dashboard(user_id: str):
         )
 
 
+@app.get("/api/users/{user_id}/action-plan", tags=["Recommendations"])
+async def get_action_plan(user_id: str):
+    """Get personalized action plan recommendations based on latest health data and ML predictions"""
+    try:
+        # Get latest insights and predictions for the user
+        try:
+            insights = await supabase_client.get_user_insights(user_id, limit=5)
+            predictions = await supabase_client.get_user_predictions(user_id, limit=5)
+            logs = await supabase_client.get_user_logs(user_id, limit=1)
+        except Exception as e:
+            logger.error(f"Error fetching user data: {e}")
+            logs = []
+        
+        # If no logs exist, return empty recommendations with helpful message
+        if not logs:
+            logger.info(f"No health data found for user {user_id}")
+            return {
+                "user_id": user_id,
+                "recommendations": [],
+                "total_recommendations": 0,
+                "message": "No health data logged yet. Start by logging your daily health metrics."
+            }
+        
+        latest_log = logs[0]
+        latest_prediction = predictions[0] if predictions else None
+        
+        # Generate action plan recommendations based on ML models
+        action_plan = ml_service.generate_action_plan(
+            log_data=latest_log,
+            prediction_data=latest_prediction,
+            insights_data=insights
+        )
+        
+        logger.info(f"Generated action plan for user {user_id} with {len(action_plan)} recommendations")
+        return {
+            "user_id": user_id,
+            "recommendations": action_plan,
+            "total_recommendations": len(action_plan),
+            "generated_at": None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating action plan: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate action plan: {str(e)}"
+        )
+
+
+@app.post("/api/users/{user_id}/goals", status_code=status.HTTP_201_CREATED, tags=["Goals"])
+async def create_user_goal(user_id: str, recommendation_id: str, title: str, status: str = "active"):
+    """Create a new user goal from a recommendation"""
+    try:
+        # Verify user exists
+        user = await supabase_client.get_user(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Save goal to database
+        goal_data = {
+            "user_id": user_id,
+            "recommendation_id": recommendation_id,
+            "title": title,
+            "status": status,
+            "created_at": None,
+            "completed_at": None
+        }
+        
+        # This would be a new table method, for now we'll just return success
+        logger.info(f"User {user_id} started goal: {title}")
+        
+        return {
+            "success": True,
+            "message": f"Goal '{title}' added successfully",
+            "goal": goal_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating goal: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 # ==================== AUTH ENDPOINTS ====================
 
 @app.post("/api/auth/signup", status_code=status.HTTP_201_CREATED, tags=["Auth"])

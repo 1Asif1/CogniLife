@@ -44,3 +44,6 @@ app-example
 /android
 *.pyc
 .env.example
+venv/
+__pycache__/
+.env

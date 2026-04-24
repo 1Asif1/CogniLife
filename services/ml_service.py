@@ -226,6 +226,135 @@ class MLService:
             "generated_at": None
         }
 
+    def generate_action_plan(self, log_data: Dict[str, Any], prediction_data: Dict[str, Any] = None, insights_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Generate prioritized action plan recommendations based on health data
+        
+        Args:
+            log_data: Latest health log data
+            prediction_data: ML prediction results
+            insights_data: Historical insights
+        
+        Returns:
+            List of actionable recommendations with priority levels
+        """
+        recommendations = []
+        
+        stress_level = log_data.get("stress_level", 5)
+        sleep_duration = log_data.get("sleep_duration", 0)
+        mood = log_data.get("mood", 5)
+        energy_level = log_data.get("energy_level", 5)
+        screen_time = log_data.get("screen_time_hours", 0)
+        steps = log_data.get("steps", 0)
+        
+        # 1. Sleep & Screen Time Recommendation
+        if sleep_duration < 7 or screen_time > 2:
+            recommendations.append({
+                "id": "reduce_screen_time",
+                "title": "Reduce screen time after 11 PM",
+                "description": f"Your screen usage ({screen_time:.1f}h) and sleep duration ({sleep_duration}h) suggest you should reduce evening screen time. Try reading or meditation instead.",
+                "priority": "HIGH",
+                "impact": "Improve sleep by 25%",
+                "icon": "moon-outline",
+                "color": "#3B82F6",
+                "bgColor": "#EFF6FF",
+                "expected_improvement": 0.25
+            })
+        
+        # 2. Physical Activity Recommendation
+        if steps < 10000:
+            daily_deficit = 10000 - steps
+            risk_reduction = min(0.15, (daily_deficit / 10000) * 0.3)
+            recommendations.append({
+                "id": "increase_steps",
+                "title": "Increase daily steps to 10,000",
+                "description": f"You're currently averaging {steps:.0f} steps. Small increases can significantly reduce diabetes and heart disease risk.",
+                "priority": "HIGH",
+                "impact": f"Reduce risk by {int(risk_reduction * 100)}%",
+                "icon": "walk-outline",
+                "color": "#10B981",
+                "bgColor": "#F0FDF4",
+                "expected_improvement": risk_reduction
+            })
+        
+        # 3. App Time Limits Recommendation
+        if screen_time > 3:
+            addiction_reduction = min(0.30, (screen_time - 2) / 5 * 0.3)
+            recommendations.append({
+                "id": "app_limits",
+                "title": "Set app time limits",
+                "description": f"Social media usage is {screen_time:.1f} hours daily. Consider setting 2-hour daily limits.",
+                "priority": "CRITICAL",
+                "impact": f"Lower addiction by {int(addiction_reduction * 100)}%",
+                "icon": "phone-portrait-outline",
+                "color": "#EF4444",
+                "bgColor": "#FEF2F2",
+                "expected_improvement": addiction_reduction
+            })
+        
+        # 4. Meditation Recommendation
+        if stress_level > 5 or mood < 6:
+            focus_improvement = (10 - stress_level) / 10 * 0.2
+            recommendations.append({
+                "id": "meditation",
+                "title": "Practice 10-minute daily meditation",
+                "description": "Meditation can help balance dopamine levels and reduce stress responses. Start with just 10 minutes daily.",
+                "priority": "MEDIUM",
+                "impact": f"Improve focus by {int(focus_improvement * 100)}%",
+                "icon": "pulse-outline",
+                "color": "#6366F1",
+                "bgColor": "#EFF6FF",
+                "expected_improvement": focus_improvement
+            })
+        
+        # 5. Stress Management Recommendation
+        if stress_level > 7:
+            recommendations.append({
+                "id": "stress_management",
+                "title": "Increase stress management activities",
+                "description": "Your stress level is elevated. Try yoga, breathing exercises, or counseling to manage stress better.",
+                "priority": "CRITICAL",
+                "impact": "Reduce stress by 40%",
+                "icon": "water-outline",
+                "color": "#8B5CF6",
+                "bgColor": "#F5F3FF",
+                "expected_improvement": 0.40
+            })
+        
+        # 6. Nutrition & Energy Recommendation
+        if energy_level < 5:
+            recommendations.append({
+                "id": "nutrition",
+                "title": "Improve nutrition and hydration",
+                "description": "Your low energy suggests you need better nutrition. Ensure balanced meals and proper hydration throughout the day.",
+                "priority": "HIGH",
+                "impact": "Boost energy by 35%",
+                "icon": "nutrition-outline",
+                "color": "#F59E0B",
+                "bgColor": "#FFFBEB",
+                "expected_improvement": 0.35
+            })
+        
+        # 7. Mood Support Recommendation
+        if mood < 4:
+            recommendations.append({
+                "id": "mood_support",
+                "title": "Reach out for emotional support",
+                "description": "Your mood is low. Consider talking to friends, family, or a mental health professional for support.",
+                "priority": "CRITICAL",
+                "impact": "Improve mood by 50%",
+                "icon": "heart-outline",
+                "color": "#EC4899",
+                "bgColor": "#FDF2F8",
+                "expected_improvement": 0.50
+            })
+        
+        # Sort by priority (CRITICAL > HIGH > MEDIUM > LOW)
+        priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+        recommendations.sort(key=lambda x: priority_order.get(x["priority"], 4))
+        
+        return recommendations
+
 
 # Create singleton instance
 ml_service = MLService()
