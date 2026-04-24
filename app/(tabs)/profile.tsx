@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
@@ -47,7 +49,16 @@ export default function ProfileScreen() {
     onConfirm?: () => void;
     showCancel?: boolean;
   } | null>(null);
-  const { signOut, userProfile } = useAuth();
+
+  // Edit Profile State
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editHeight, setEditHeight] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const { signOut, userProfile, updateUserProfile } = useAuth();
   const router = useRouter();
 
   const [streakData, setStreakData] = useState({ currentStreak: 0, bestStreak: 0, totalLogs: 0 });
@@ -63,6 +74,42 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     await signOut();
     router.replace('/auth/login');
+  };
+
+  const openEditModal = () => {
+    if (userProfile) {
+      setEditName(userProfile.name || '');
+      setEditHeight(userProfile.height ? String(userProfile.height) : '');
+      setEditWeight(userProfile.weight ? String(userProfile.weight) : '');
+    }
+    setEditError('');
+    setEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      setEditError('Name is required');
+      return;
+    }
+
+    setEditLoading(true);
+    setEditError('');
+
+    const updates = {
+      name: editName.trim(),
+      height: editHeight ? parseFloat(editHeight) : null,
+      weight: editWeight ? parseFloat(editWeight) : null,
+    };
+
+    const { error: updateError } = await updateUserProfile(updates);
+
+    if (updateError) {
+      setEditError(updateError.message || 'Failed to update profile');
+      setEditLoading(false);
+    } else {
+      setEditLoading(false);
+      setEditModalVisible(false);
+    }
   };
 
   const handleDisconnect = async () => {
@@ -162,7 +209,7 @@ export default function ProfileScreen() {
                   Member since {userProfile?.created_at ? new Date(userProfile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '----'}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.editBtn}>
+              <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
                 <Text style={styles.editBtnText}>Edit</Text>
               </TouchableOpacity>
             </View>
@@ -308,6 +355,75 @@ export default function ProfileScreen() {
         onCancel={() => setModalVisible(false)}
         showCancel={modalConfig?.showCancel}
       />
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.editModalOverlay}>
+          <KeyboardAvoidingView 
+            style={styles.editModalKeyboard} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.editModalContent}>
+              <View style={styles.editModalHeader}>
+                <Text style={styles.editModalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.closeBtn}>
+                  <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                {editError ? (
+                  <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={16} color={theme.colors.danger} />
+                    <Text style={styles.errorText}>{editError}</Text>
+                  </View>
+                ) : null}
+
+                <Input
+                  label="Full Name"
+                  placeholder="Enter your name"
+                  value={editName}
+                  onChangeText={(text) => { setEditName(text); setEditError(''); }}
+                />
+
+                <Input
+                  label="Height (cm)"
+                  placeholder="e.g. 175"
+                  keyboardType="numeric"
+                  value={editHeight}
+                  onChangeText={(text) => { setEditHeight(text); setEditError(''); }}
+                />
+
+                <Input
+                  label="Weight (kg)"
+                  placeholder="e.g. 70"
+                  keyboardType="numeric"
+                  value={editWeight}
+                  onChangeText={(text) => { setEditWeight(text); setEditError(''); }}
+                />
+
+                {editLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                    <Text style={styles.loadingText}>Saving...</Text>
+                  </View>
+                ) : (
+                  <Button
+                    title="Save Changes"
+                    onPress={handleSaveProfile}
+                    style={styles.saveBtn}
+                  />
+                )}
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -368,5 +484,18 @@ const styles = StyleSheet.create({
   settingSubtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4 },
   logoutCard: { backgroundColor: theme.colors.danger + '10', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 16, borderRadius: 12, marginBottom: 24 },
   logoutText: { color: theme.colors.danger, fontSize: 16, fontWeight: '600' },
-  version: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12 }
+  version: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12 },
+  
+  // Edit Modal Styles
+  editModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  editModalKeyboard: { flex: 1, justifyContent: 'flex-end' },
+  editModalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
+  editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  editModalTitle: { ...theme.typography.h2, color: theme.colors.text },
+  closeBtn: { padding: 4 },
+  errorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.dangerLight, borderRadius: 10, padding: 12, marginBottom: 16, gap: 8 },
+  errorText: { color: theme.colors.danger, fontSize: 13, flex: 1 },
+  saveBtn: { marginTop: 8, marginBottom: 20 },
+  loadingContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, marginTop: 8, marginBottom: 20, gap: 8 },
+  loadingText: { color: theme.colors.primary, fontSize: 16, fontWeight: '600' }
 });

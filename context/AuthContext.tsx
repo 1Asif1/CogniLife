@@ -21,6 +21,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   fetchUserProfile: (email: string) => Promise<void>;
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<{ error: any | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -134,6 +135,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return { error: 'No authenticated user' };
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating user profile:', error);
+        return { error };
+      }
+
+      if (data) {
+        setUserProfile((prev) => prev ? { ...prev, ...data, id: data.user_id ?? data.id } : null);
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('Error updating user profile:', err);
+      return { error: err };
+    }
+  };
+
   const signUp = async (email: string, password: string, name: string) => {
     // 1. Create Supabase Auth user
     const { data, error } = await supabase.auth.signUp({
@@ -176,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, userProfile, isLoading, signIn, signUp, signOut, fetchUserProfile }}>
+    <AuthContext.Provider value={{ session, user, userProfile, isLoading, signIn, signUp, signOut, fetchUserProfile, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );
