@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useState, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Card } from '../../components/Card';
 import { CustomModal } from '../../components/CustomModal';
@@ -8,6 +8,7 @@ import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
+import { getStreakData } from '../../services/dailyLogService';
 
 interface BluetoothDevice {
   id: string;
@@ -48,6 +49,16 @@ export default function ProfileScreen() {
   } | null>(null);
   const { signOut, userProfile } = useAuth();
   const router = useRouter();
+
+  const [streakData, setStreakData] = useState({ currentStreak: 0, bestStreak: 0, totalLogs: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userProfile?.id) {
+        getStreakData(userProfile.id).then(setStreakData);
+      }
+    }, [userProfile?.id])
+  );
 
   const handleLogout = async () => {
     await signOut();
@@ -165,6 +176,43 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.content}>
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderLine}>
+            <Ionicons name="flame" size={20} color="#EA580C" style={{ marginRight: 8 }} />
+            <Text style={styles.sectionTitle}>Activity Streak</Text>
+          </View>
+          <View style={styles.streakStatsRow}>
+            <View style={styles.streakBox}>
+              <View style={[styles.streakIconBg, { backgroundColor: '#FFF7ED' }]}>
+                <Ionicons name="flame" size={24} color="#EA580C" />
+              </View>
+              <Text style={styles.streakValue}>{streakData.currentStreak}</Text>
+              <Text style={styles.streakLabel}>Current{'\n'}Streak</Text>
+            </View>
+            <View style={styles.streakDivider} />
+            <View style={styles.streakBox}>
+              <View style={[styles.streakIconBg, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="trophy" size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.streakValue}>{streakData.bestStreak}</Text>
+              <Text style={styles.streakLabel}>Best{'\n'}Streak</Text>
+            </View>
+            <View style={styles.streakDivider} />
+            <View style={styles.streakBox}>
+              <View style={[styles.streakIconBg, { backgroundColor: '#ECFDF5' }]}>
+                <Ionicons name="calendar" size={24} color="#10B981" />
+              </View>
+              <Text style={styles.streakValue}>{streakData.totalLogs}</Text>
+              <Text style={styles.streakLabel}>Total{'\n'}Logs</Text>
+            </View>
+          </View>
+
+          <View style={styles.streakBanner}>
+            <Text style={styles.streakBannerText}>
+              🔥 {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''} in a row! Keep it up!
+            </Text>
+          </View>
+        </Card>
         <Card style={styles.sectionCard}>
           <View style={styles.sectionHeaderLine}>
             <Ionicons name="fitness-outline" size={20} color={theme.colors.secondary} style={{ marginRight: 8 }} />
@@ -292,6 +340,14 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
   statLabel: { fontSize: 12, color: theme.colors.textSecondary },
   statDivider: { width: 1, backgroundColor: theme.colors.border, height: '100%' },
+  streakStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  streakBox: { alignItems: 'center', flex: 1 },
+  streakIconBg: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  streakValue: { fontSize: 20, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
+  streakLabel: { fontSize: 12, color: theme.colors.textSecondary, textAlign: 'center' },
+  streakDivider: { width: 1, backgroundColor: theme.colors.border, height: 60, alignSelf: 'center' },
+  streakBanner: { backgroundColor: '#FFF7ED', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  streakBannerText: { color: '#EA580C', fontWeight: '600', fontSize: 14 },
   deviceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   deviceIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   deviceTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
