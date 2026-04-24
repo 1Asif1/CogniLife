@@ -64,7 +64,11 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
   }
 
   // 🔥 PROCESS DATA FOR CHARTS
-  const labels = logs.map((item) => item.date || "");
+  const labels = logs.map((item) => {
+  if (!item.date) return "";
+  const [year, month, day] = item.date.split("-");
+  return `${day}-${month}`;
+});
   const sleepData = logs.map(item => item.sleep_hours || 0);
   const screenData = logs.map((item) => item.screen_time || 0);
   const stepsData = logs.map((item) => item.steps || 0);
@@ -224,10 +228,10 @@ const styles = StyleSheet.create({
   metricTitle: { ...theme.typography.small, marginBottom: 4 },
   metricValue: { fontSize: 16, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
   metricStatus: { fontSize: 12, fontWeight: '600' },
-  summaryContainer: { position: 'absolute', bottom: -50, left: 24, right: 24 },
+  summaryContainer: { bottom: 25, left: 24, right: 24 },
   summaryCard: { backgroundColor: theme.colors.primary, padding: 20 },
   summaryTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', marginBottom: 16 },
-  summaryItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  summaryItem: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 12 },
   summaryText: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '500' },
   content: { padding: 24, paddingTop: 10 },
