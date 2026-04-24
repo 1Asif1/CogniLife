@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # API Configuration
     api_host: str = os.getenv("API_HOST", "0.0.0.0")
-    api_port: int = int(os.getenv("API_PORT", "8000"))
+    api_port: int = int(os.getenv("API_PORT", "8001"))
     api_environment: str = os.getenv("API_ENVIRONMENT", "development")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     
