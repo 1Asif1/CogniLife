@@ -33,30 +33,31 @@ class UserResponse(BaseModel):
 
 class DailyLogCreate(BaseModel):
     """Schema for creating a daily log"""
-    sleep_duration: float
-    sleep_quality: int  # 1-10
-    mood: int  # 1-10
-    energy_level: int  # 1-10
-    stress_level: int  # 1-10
-    exercise_minutes: int
-    water_intake: float  # liters
-    caffeine_intake: float  # mg
-    notes: Optional[str] = None
+    screen_time: Optional[float] = 0
+    late_night_usage: Optional[float] = 0
+    sleep_hours: Optional[float] = 0
+    activity_level: Optional[str] = "low"
+    sitting_time: Optional[float] = 0
+    inactivity_periods: Optional[int] = 0
+    steps: Optional[int] = 0
+    meals_per_day: Optional[int] = 3
+    calorie_intake: Optional[int] = 0
 
 
 class DailyLogResponse(BaseModel):
     """Schema for daily log response"""
     id: str
     user_id: str
-    sleep_duration: float
-    sleep_quality: int
-    mood: int
-    energy_level: int
-    stress_level: int
-    exercise_minutes: int
-    water_intake: float
-    caffeine_intake: float
-    notes: Optional[str] = None
+    date: Optional[str] = None
+    screen_time: Optional[float] = 0
+    late_night_usage: Optional[float] = 0
+    sleep_hours: Optional[float] = 0
+    activity_level: Optional[str] = "low"
+    sitting_time: Optional[float] = 0
+    inactivity_periods: Optional[int] = 0
+    steps: Optional[int] = 0
+    meals_per_day: Optional[int] = 3
+    calorie_intake: Optional[int] = 0
     created_at: Optional[datetime] = None
 
     class Config:
@@ -70,11 +71,11 @@ class PredictionResponse(BaseModel):
     id: str
     user_id: str
     log_id: str
-    health_risk_score: float
-    fatigue_level: float
-    stress_prediction: float
-    sleep_quality_prediction: float
-    anomaly_detected: bool
+    fatigue: Optional[int] = None
+    future_health_risk: Optional[int] = None
+    diabetes_risk: Optional[int] = None
+    anemia_risk: Optional[int] = None
+    pcos_risk: Optional[int] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -97,10 +98,8 @@ class AnomalyResponse(BaseModel):
     id: str
     user_id: str
     log_id: str
-    is_anomaly: bool
+    anomaly_flag: int
     anomaly_score: float
-    anomaly_type: Optional[str] = None
-    description: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -115,9 +114,7 @@ class BehaviorClusterResponse(BaseModel):
     user_id: str
     log_id: str
     cluster_id: int
-    cluster_name: Optional[str] = None
-    cluster_probability: float
-    behavior_pattern: Optional[Dict[str, Any]] = None
+    cluster_label: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -131,10 +128,9 @@ class InsightsResponse(BaseModel):
     id: str
     user_id: str
     log_id: str
-    insight_type: str
-    insight_text: str
-    confidence_score: float
-    recommendations: Optional[List[str]] = None
+    summary: Optional[str] = None
+    reasons: Optional[str] = None
+    recommendations: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -149,6 +145,8 @@ class DashboardResponse(BaseModel):
     recent_logs: List[DailyLogResponse]
     recent_predictions: List[PredictionResponse]
     recent_insights: List[InsightsResponse]
+    recent_anomalies: Optional[List[AnomalyResponse]] = None
+    recent_behavior_clusters: Optional[List[BehaviorClusterResponse]] = None
     summary_stats: Optional[Dict[str, Any]] = None
 
 

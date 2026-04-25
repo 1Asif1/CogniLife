@@ -37,15 +37,18 @@ CREATE TABLE IF NOT EXISTS daily_logs (
 
 -- Create predictions table
 CREATE TABLE IF NOT EXISTS predictions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  log_id UUID REFERENCES daily_logs(id) ON DELETE CASCADE,
-  health_risk_score FLOAT DEFAULT 0,
-  fatigue_level FLOAT DEFAULT 0,
-  stress_prediction FLOAT DEFAULT 0,
-  sleep_quality_prediction FLOAT DEFAULT 0,
-  anomaly_detected BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id uuid not null default gen_random_uuid (),
+  user_id uuid null,
+  log_id uuid null,
+  fatigue integer null,
+  future_health_risk integer null,
+  diabetes_risk integer null,
+  anemia_risk integer null,
+  pcos_risk integer null,
+  created_at timestamp without time zone null default CURRENT_TIMESTAMP,
+  constraint predictions_pkey primary key (id),
+  constraint predictions_log_id_fkey foreign KEY (log_id) references daily_logs (id),
+  constraint predictions_user_id_fkey foreign KEY (user_id) references users (id)
 );
 
 -- Create anomalies table
@@ -72,13 +75,16 @@ CREATE TABLE IF NOT EXISTS behavior_clusters (
 
 -- Create insights table
 CREATE TABLE IF NOT EXISTS insights (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  log_id UUID REFERENCES daily_logs(id) ON DELETE CASCADE,
-  insight_text TEXT,
-  recommendation TEXT,
-  priority VARCHAR(50) DEFAULT 'low',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id uuid not null default gen_random_uuid (),
+  user_id uuid null,
+  log_id uuid null,
+  summary text null,
+  reasons text null,
+  recommendations text null,
+  created_at timestamp without time zone null default CURRENT_TIMESTAMP,
+  constraint insights_pkey primary key (id),
+  constraint insights_log_id_fkey foreign KEY (log_id) references daily_logs (id),
+  constraint insights_user_id_fkey foreign KEY (user_id) references users (id)
 );
 
 -- Create indexes for performance

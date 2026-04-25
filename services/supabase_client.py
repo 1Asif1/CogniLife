@@ -105,11 +105,16 @@ class SupabaseClient:
             logger.debug(f"Creating daily log for user {user_id}")
             log_record = {
                 "user_id": user_id,
-                "sleep_duration": log_data.get("sleep_duration", 0),
-                "mood": log_data.get("mood", 5),
-                "stress_level": log_data.get("stress_level", 5),
-                "energy_level": log_data.get("energy_level", 5),
-                "sleep_quality": log_data.get("sleep_quality", 5),
+                "date": log_data.get("date", datetime.utcnow().date().isoformat()),
+                "screen_time": log_data.get("screen_time", 0),
+                "late_night_usage": int(log_data.get("late_night_usage", 0)),
+                "sleep_hours": log_data.get("sleep_hours", 0),
+                "activity_level": log_data.get("activity_level", "low"),
+                "sitting_time": log_data.get("sitting_time", 0),
+                "inactivity_periods": int(log_data.get("inactivity_periods", 0)),
+                "steps": int(log_data.get("steps", 0)),
+                "meals_per_day": int(log_data.get("meals_per_day", 3)),
+                "calorie_intake": int(log_data.get("calorie_intake", 0)),
                 "created_at": datetime.utcnow().isoformat()
             }
 
@@ -117,7 +122,7 @@ class SupabaseClient:
                 raise RuntimeError("Supabase client not initialized")
 
             data = self._execute(
-                self.client_service.table("daily_logs").insert([log_record])
+                self.client_service.table("daily_logs").upsert(log_record, on_conflict="user_id, date")
             )
             created = data[0] if data else log_record
             logger.info(f"✅ Created daily log: {created.get('id', 'unknown')}")
@@ -133,20 +138,29 @@ class SupabaseClient:
             prediction_record = {
                 "user_id": user_id,
                 "log_id": log_id,
-                "health_risk_score": predictions.get("health_risk_score", 0),
-                "fatigue_level": predictions.get("fatigue_level", 0),
-                "stress_prediction": predictions.get("stress_prediction", 0),
-                "sleep_quality_prediction": predictions.get("sleep_quality_prediction", 0),
-                "anomaly_detected": predictions.get("anomaly_detected", False),
+                "fatigue": int(predictions.get("fatigue", 0)),
+                "future_health_risk": int(predictions.get("future_health_risk", 0)),
+                "diabetes_risk": int(predictions.get("diabetes_risk", 0)),
+                "anemia_risk": int(predictions.get("anemia_risk", 0)),
+                "pcos_risk": int(predictions.get("pcos_risk", 0)),
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client_service is None:
-                raise RuntimeError("Supabase client not initialized")
-
-            data = self._execute(
-                self.client_service.table("predictions").insert([prediction_record])
+            # Manual upsert: check if exists, then update or insert
+            existing = self._execute(
+                self.client_service.table("predictions").select("id").eq("log_id", log_id).limit(1)
             )
+
+            if existing:
+                prediction_id = existing[0]['id']
+                data = self._execute(
+                    self.client_service.table("predictions").update(prediction_record).eq("id", prediction_id)
+                )
+            else:
+                data = self._execute(
+                    self.client_service.table("predictions").insert([prediction_record])
+                )
+            
             saved = data[0] if data else prediction_record
             logger.info(f"✅ Saved prediction: {saved.get('id', 'unknown')}")
             return saved
@@ -161,18 +175,26 @@ class SupabaseClient:
             anomaly_record = {
                 "user_id": user_id,
                 "log_id": log_id,
-                "is_anomaly": anomaly_data.get("is_anomaly", False),
-                "anomaly_type": anomaly_data.get("anomaly_type", ""),
-                "anomaly_score": anomaly_data.get("anomaly_score", 0),
+                "anomaly_flag": 1 if anomaly_data.get("is_anomaly", False) else 0,
+                "anomaly_score": float(anomaly_data.get("anomaly_score", 0)),
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client_service is None:
-                raise RuntimeError("Supabase client not initialized")
-
-            data = self._execute(
-                self.client_service.table("anomalies").insert([anomaly_record])
+            # Manual upsert
+            existing = self._execute(
+                self.client_service.table("anomalies").select("id").eq("log_id", log_id).limit(1)
             )
+
+            if existing:
+                anomaly_id = existing[0]['id']
+                data = self._execute(
+                    self.client_service.table("anomalies").update(anomaly_record).eq("id", anomaly_id)
+                )
+            else:
+                data = self._execute(
+                    self.client_service.table("anomalies").insert([anomaly_record])
+                )
+            
             saved = data[0] if data else anomaly_record
             logger.info(f"✅ Saved anomaly: {saved.get('id', 'unknown')}")
             return saved
@@ -187,18 +209,26 @@ class SupabaseClient:
             cluster_record = {
                 "user_id": user_id,
                 "log_id": log_id,
-                "cluster_id": cluster_data.get("cluster_id", 0),
-                "cluster_name": cluster_data.get("cluster_name", ""),
-                "cluster_confidence": cluster_data.get("cluster_confidence", 0),
+                "cluster_id": int(cluster_data.get("cluster_id", 0)),
+                "cluster_label": cluster_data.get("cluster_name", ""),
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client_service is None:
-                raise RuntimeError("Supabase client not initialized")
-
-            data = self._execute(
-                self.client_service.table("behavior_clusters").insert([cluster_record])
+            # Manual upsert
+            existing = self._execute(
+                self.client_service.table("behavior_clusters").select("id").eq("log_id", log_id).limit(1)
             )
+
+            if existing:
+                bc_id = existing[0]['id']
+                data = self._execute(
+                    self.client_service.table("behavior_clusters").update(cluster_record).eq("id", bc_id)
+                )
+            else:
+                data = self._execute(
+                    self.client_service.table("behavior_clusters").insert([cluster_record])
+                )
+            
             saved = data[0] if data else cluster_record
             logger.info(f"✅ Saved behavior cluster: {saved.get('id', 'unknown')}")
             return saved
@@ -213,18 +243,27 @@ class SupabaseClient:
             insight_record = {
                 "user_id": user_id,
                 "log_id": log_id,
-                "insight_text": insights_data.get("insight_text", ""),
-                "recommendation": insights_data.get("recommendation", ""),
-                "priority": insights_data.get("priority", "low"),
+                "summary": insights_data.get("summary", ""),
+                "reasons": insights_data.get("reasons", ""),
+                "recommendations": insights_data.get("recommendations", ""),
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            if self.client_service is None:
-                raise RuntimeError("Supabase client not initialized")
-
-            data = self._execute(
-                self.client_service.table("insights").insert([insight_record])
+            # Manual upsert
+            existing = self._execute(
+                self.client_service.table("insights").select("id").eq("log_id", log_id).limit(1)
             )
+
+            if existing:
+                insight_id = existing[0]['id']
+                data = self._execute(
+                    self.client_service.table("insights").update(insight_record).eq("id", insight_id)
+                )
+            else:
+                data = self._execute(
+                    self.client_service.table("insights").insert([insight_record])
+                )
+            
             saved = data[0] if data else insight_record
             logger.info(f"✅ Saved insight: {saved.get('id', 'unknown')}")
             return saved
@@ -280,6 +319,38 @@ class SupabaseClient:
             logger.error(f"Error getting insights: {e}")
             return []
 
+    async def get_user_anomalies(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get user's anomalies"""
+        try:
+            logger.debug(f"Getting anomalies for user {user_id}")
+            client = self.client_service or self.client_anon
+            if client is None:
+                raise RuntimeError("Supabase client not initialized")
+
+            data = self._execute(
+                client.table("anomalies").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+            )
+            return data or []
+        except Exception as e:
+            logger.error(f"Error getting anomalies: {e}")
+            return []
+
+    async def get_user_behavior_clusters(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get user's behavior clusters"""
+        try:
+            logger.debug(f"Getting behavior clusters for user {user_id}")
+            client = self.client_service or self.client_anon
+            if client is None:
+                raise RuntimeError("Supabase client not initialized")
+
+            data = self._execute(
+                client.table("behavior_clusters").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+            )
+            return data or []
+        except Exception as e:
+            logger.error(f"Error getting behavior clusters: {e}")
+            return []
+
     async def get_dashboard_data(self, user_id: str) -> Dict[str, Any]:
         """Get comprehensive dashboard data"""
         try:
@@ -288,20 +359,37 @@ class SupabaseClient:
             recent_logs = await self.get_user_logs(user_id, limit=7)
             recent_predictions = await self.get_user_predictions(user_id, limit=7)
             recent_insights = await self.get_user_insights(user_id, limit=5)
+            recent_anomalies = await self.get_user_anomalies(user_id, limit=5)
+            recent_behavior_clusters = await self.get_user_behavior_clusters(user_id, limit=5)
+            
+            # Dynamically inject SHAP explanations for the most recent log
+            if recent_logs:
+                from services.ml_service import ml_service
+                latest_log = recent_logs[0]
+                
+                if recent_anomalies and recent_anomalies[0].get("is_anomaly"):
+                    recent_anomalies[0]["anomaly_type"] = ml_service.explain_anomaly(latest_log, user)
+                    
+                if recent_behavior_clusters:
+                    cluster_id = recent_behavior_clusters[0].get("cluster_id", 0)
+                    recent_behavior_clusters[0]["behavior_pattern"] = ml_service.explain_behavior(latest_log, user, cluster_id)
+            
             summary_stats = {}
             if recent_predictions:
-                avg_health_risk = sum(p.get("health_risk_score", 0) for p in recent_predictions) / len(recent_predictions)
-                avg_fatigue = sum(p.get("fatigue_level", 0) for p in recent_predictions) / len(recent_predictions)
+                avg_health_risk = sum(p.get("future_health_risk", 0) for p in recent_predictions) / len(recent_predictions)
+                avg_fatigue = sum(p.get("fatigue", 0) for p in recent_predictions) / len(recent_predictions)
                 summary_stats = {
                     "avg_health_risk_score": avg_health_risk,
                     "avg_fatigue_level": avg_fatigue,
-                    "total_anomalies": sum(1 for p in recent_predictions if p.get("anomaly_detected", False))
+                    "total_anomalies": sum(1 for a in recent_anomalies if a.get("is_anomaly", False)) if recent_anomalies else 0
                 }
             return {
                 "user": user,
                 "recent_logs": recent_logs,
                 "recent_predictions": recent_predictions,
                 "recent_insights": recent_insights,
+                "recent_anomalies": recent_anomalies,
+                "recent_behavior_clusters": recent_behavior_clusters,
                 "summary_stats": summary_stats
             }
         except Exception as e:
@@ -311,6 +399,8 @@ class SupabaseClient:
                 "recent_logs": [],
                 "recent_predictions": [],
                 "recent_insights": [],
+                "recent_anomalies": [],
+                "recent_behavior_clusters": [],
                 "summary_stats": {}
             }
 

@@ -27,6 +27,8 @@ class MLService:
         self.scaler = None
         self.features = None
         self.xgb_model = None
+        self.kmeans_model = None
+        self.isolation_forest_model = None
         self.shap_explainers = None
         self.fe_func = None
 
@@ -55,6 +57,18 @@ class MLService:
             else:
                 logger.warning(f"⚠️ XGBoost model not found at {xgb_path}")
 
+            # Load KMeans
+            kmeans_path = model_dir / "behavioral" / "kmeans_model.pkl"
+            if kmeans_path.exists():
+                self.kmeans_model = joblib.load(kmeans_path)
+                logger.info(f"✅ KMeans model loaded")
+
+            # Load Isolation Forest
+            iso_path = model_dir / "anomaly" / "isolation_forest_model.pkl"
+            if iso_path.exists():
+                self.isolation_forest_model = joblib.load(iso_path)
+                logger.info(f"✅ Isolation Forest model loaded")
+
             # Load feature engineering function
             fe_dir = str(feature_engineering_dir)
             if fe_dir not in sys.path:
@@ -70,7 +84,19 @@ class MLService:
                 for i in range(len(self.TARGET_COLS)):
                     explainer = shap.TreeExplainer(self.xgb_model.estimators_[i])
                     self.shap_explainers.append(explainer)
-                logger.info("✅ SHAP explainers ready")
+                logger.info("✅ XGBoost SHAP explainers ready")
+
+            self.iso_explainer = None
+            if self.isolation_forest_model is not None:
+                import shap
+                self.iso_explainer = shap.TreeExplainer(self.isolation_forest_model)
+                logger.info("✅ Isolation Forest SHAP explainer ready")
+
+            self.kmeans_explainer = None
+            if self.kmeans_model is not None:
+                import shap
+                self.kmeans_explainer = shap.KernelExplainer(self.kmeans_model.predict, self.kmeans_model.cluster_centers_)
+                logger.info("✅ KMeans SHAP explainer ready")
 
             logger.info("✅ ML Service initialized successfully")
 
@@ -93,34 +119,59 @@ class MLService:
             logger.info("Running health predictions")
             
             # Extract features from log data
-            sleep_duration = log_data.get("sleep_duration", 0)
-            stress_level = log_data.get("stress_level", 5)
-            mood = log_data.get("mood", 5)
-            energy_level = log_data.get("energy_level", 5)
-            sleep_quality = log_data.get("sleep_quality", 5)
+            sleep_hours = log_data.get("sleep_hours", 7)
+            screen_time = log_data.get("screen_time", 2)
+            late_night_usage = log_data.get("late_night_usage", 0)
             
             # Calculate prediction scores
             health_risk_score = self._calculate_health_risk(log_data)
-            fatigue_level = self._calculate_fatigue(sleep_duration, energy_level)
-            stress_prediction = stress_level / 10.0
-            sleep_quality_prediction = sleep_quality / 10.0
+            fatigue_level = self._calculate_fatigue(sleep_hours, 5) # Default energy 5
+            stress_prediction = min(1.0, late_night_usage / 4.0)
+            sleep_quality_prediction = min(1.0, sleep_hours / 8.0) if sleep_hours <= 8 else max(0.0, 1.0 - (sleep_hours - 8) / 4.0)
+            
+            # Extract full features for ML models
+            try:
+                full_features = self._build_full_features(log_data, user_data)
+            except Exception as e:
+                logger.warning(f"Failed to build full features, using fallback: {e}")
+                full_features = None
             
             # Detect anomalies
-            is_anomaly, anomaly_type, anomaly_score = self._detect_anomaly(log_data)
+            is_anomaly, anomaly_type, anomaly_score = self._detect_anomaly(log_data, full_features)
             
             # Perform behavior clustering
-            cluster_id, cluster_name, behavior_pattern = self._perform_clustering(log_data)
+            cluster_id, cluster_name, behavior_pattern = self._perform_clustering(log_data, full_features)
             
             # Generate insights
             insights_data = self._generate_insights(log_data, health_risk_score)
             
+            # Get actual XGBoost predictions for the new schema
+            fatigue = 0
+            future_health_risk = 0
+            diabetes_risk = 0
+            anemia_risk = 0
+            pcos_risk = 0
+            
+            if self.xgb_model is not None and self.fe_func is not None:
+                try:
+                    raw_input = self._map_supabase_to_model_input(log_data, user_data)
+                    results = self.predict_and_explain(raw_input)
+                    
+                    fatigue = results.get("Fatigue", {}).get("prediction", 0)
+                    future_health_risk = results.get("FutureHealthRisk", {}).get("prediction", 0)
+                    diabetes_risk = results.get("DiabetesRisk", {}).get("prediction", 0)
+                    anemia_risk = results.get("AnemiaRisk", {}).get("prediction", 0)
+                    pcos_risk = results.get("PCOSRisk", {}).get("prediction", 0)
+                except Exception as e:
+                    logger.error(f"Error getting XGBoost predictions: {e}")
+
             return {
                 "predictions": {
-                    "health_risk_score": round(health_risk_score, 3),
-                    "fatigue_level": round(fatigue_level, 3),
-                    "stress_prediction": round(stress_prediction, 3),
-                    "sleep_quality_prediction": round(sleep_quality_prediction, 3),
-                    "anomaly_detected": is_anomaly
+                    "fatigue": int(fatigue),
+                    "future_health_risk": int(future_health_risk),
+                    "diabetes_risk": int(diabetes_risk),
+                    "anemia_risk": int(anemia_risk),
+                    "pcos_risk": int(pcos_risk)
                 },
                 "anomaly": {
                     "is_anomaly": is_anomaly,
@@ -141,30 +192,56 @@ class MLService:
             raise
     
     def _calculate_health_risk(self, log_data: Dict[str, Any]) -> float:
-        """Calculate health risk score (0-1)"""
-        stress_level = log_data.get("stress_level", 5) / 10.0
-        sleep_quality = log_data.get("sleep_quality", 5) / 10.0
-        energy_level = log_data.get("energy_level", 5) / 10.0
+        """Calculate health risk score (0-1) using new schema fields"""
+        late_night = log_data.get("late_night_usage", 0) / 4.0
+        sleep = log_data.get("sleep_hours", 7)
+        screen = log_data.get("screen_time", 2) / 10.0
         
-        # Risk calculation: high stress + poor sleep + low energy = high risk
-        risk = (stress_level * 0.4) + ((1 - sleep_quality) * 0.3) + ((1 - energy_level) * 0.3)
+        # Risk factors
+        sleep_risk = 0.0
+        if sleep < 6: sleep_risk = 0.4
+        elif sleep < 7: sleep_risk = 0.2
+        elif sleep > 9: sleep_risk = 0.2
+        
+        late_night_risk = min(0.4, late_night)
+        screen_risk = min(0.2, screen)
+        
+        risk = sleep_risk + late_night_risk + screen_risk
         return min(1.0, max(0.0, risk))
     
-    def _calculate_fatigue(self, sleep_duration: float, energy_level: int) -> float:
+    def _calculate_fatigue(self, sleep_hours: float, energy_level: int = 5) -> float:
         """Calculate fatigue level (0-1)"""
         # Ideal sleep is 7-9 hours
-        if 7 <= sleep_duration <= 9:
+        if 7 <= sleep_hours <= 9:
             sleep_score = 0.0
         else:
-            sleep_score = abs(sleep_duration - 8) / 8
+            sleep_score = min(1.0, abs(sleep_hours - 8) / 4.0)
         
+        # If we don't have energy_level, we use a middle ground
         energy_score = 1 - (energy_level / 10.0)
         
-        fatigue = (sleep_score * 0.5) + (energy_score * 0.5)
+        fatigue = (sleep_score * 0.6) + (energy_score * 0.4)
         return min(1.0, max(0.0, fatigue))
     
-    def _detect_anomaly(self, log_data: Dict[str, Any]) -> tuple:
+    def _detect_anomaly(self, log_data: Dict[str, Any], full_features: pd.DataFrame = None) -> tuple:
         """Detect if the log data contains anomalies"""
+        
+        if self.isolation_forest_model is not None and full_features is not None:
+            expected = list(self.isolation_forest_model.feature_names_in_)
+            df_model = full_features.copy()
+            for col in expected:
+                if col not in df_model.columns:
+                    df_model[col] = 0
+            df_model = df_model[expected]
+            
+            pred = self.isolation_forest_model.predict(df_model)[0]
+            is_anomaly = bool(pred == -1)
+            score = self.isolation_forest_model.decision_function(df_model)[0]
+            anomaly_score = max(0.0, min(1.0, 0.5 - score))
+            
+            anomaly_type = "Unusual Behavior Pattern" if is_anomaly else None
+            return is_anomaly, anomaly_type, float(anomaly_score)
+            
         stress_level = log_data.get("stress_level", 5)
         sleep_duration = log_data.get("sleep_duration", 0)
         mood = log_data.get("mood", 5)
@@ -191,8 +268,32 @@ class MLService:
         
         return is_anomaly, anomaly_type, anomaly_score
     
-    def _perform_clustering(self, log_data: Dict[str, Any]) -> tuple:
+    def _perform_clustering(self, log_data: Dict[str, Any], full_features: pd.DataFrame = None) -> tuple:
         """Perform behavior clustering and return cluster info"""
+        
+        if self.kmeans_model is not None and full_features is not None:
+            expected = list(self.kmeans_model.feature_names_in_)
+            df_model = full_features.copy()
+            for col in expected:
+                if col not in df_model.columns:
+                    df_model[col] = 0
+            df_model = df_model[expected]
+            
+            cluster_id = int(self.kmeans_model.predict(df_model)[0])
+            names = {
+                0: "Balanced & Active",
+                1: "High Stress & Sedentary",
+                2: "Low Sleep & Fatigued",
+                3: "High Energy & Productive"
+            }
+            patterns = {
+                0: "Healthy mix of activity and rest",
+                1: "High digital load and low activity",
+                2: "Insufficient sleep affecting performance",
+                3: "Highly active with good routines"
+            }
+            return cluster_id, names.get(cluster_id, f"Cluster {cluster_id}"), patterns.get(cluster_id, "Unknown pattern")
+            
         mood = log_data.get("mood", 5)
         energy = log_data.get("energy_level", 5)
         
@@ -253,9 +354,9 @@ class MLService:
             recommendations.append("Increase physical activity and improve diet")
         
         return {
-            "insight_text": "; ".join(insights_list),
-            "recommendation": recommendations[0] if recommendations else "Keep monitoring your health",
-            "priority": priority,
+            "summary": "; ".join(insights_list),
+            "recommendations": recommendations[0] if recommendations else "Keep monitoring your health",
+            "reasons": f"Priority: {priority}",
             "generated_at": None
         }
 
@@ -302,6 +403,43 @@ class MLService:
             "Height": height,
             "Weight": weight,
         }
+
+    def _build_full_features(self, log_data: Dict[str, Any], user_data: Dict[str, Any]) -> pd.DataFrame:
+        """Build full features dataframe for Isolation Forest and KMeans"""
+        raw_input = self._map_supabase_to_model_input(log_data, user_data)
+        df = pd.DataFrame([raw_input])
+        if self.fe_func:
+            df_fe = self.fe_func(df)
+        else:
+            df_fe = df.copy()
+            
+        sleep_hours = float(log_data.get("sleep_hours", 7) or 7)
+        activity_level = raw_input["ActivityLevel"]
+        meals = raw_input["MealsPerDay"]
+        cal = raw_input["CalorieIntake"]
+        screen_time = raw_input["ScreenTime"]
+        sitting_time = raw_input["SittingTime"]
+        inactivity = raw_input["InactivityPeriods"]
+        late_night = raw_input["LateNightUsage"]
+        
+        stress_level = (screen_time * 0.3 + late_night * 2 + (10 - sleep_hours) * 0.4 + inactivity * 0.3)
+        stress_level = max(1, min(10, stress_level))
+        
+        df_fe['SleepScore'] = 1 - abs(sleep_hours - 7.5) / 7.5
+        df_fe['ActivityScore'] = activity_level / 5
+        df_fe['DietScore'] = meals / 5
+        df_fe['StressScore'] = stress_level / 10
+        df_fe['SedentaryIndex'] = (sitting_time + inactivity) / 20
+        df_fe['DigitalLoad'] = screen_time
+        
+        df_fe['LateNightImpact'] = late_night * 0.5
+        df_fe['CalorieBalance'] = 1 - abs(cal - 2000)/2000
+        df_fe['MealScore'] = df_fe['DietScore']
+        df_fe['DopamineScore'] = (screen_time * 0.4 + late_night * 2 + stress_level * 0.3 + (10 - sleep_hours) * 0.3)
+        df_fe['FatigueIndex'] = (1 - df_fe['SleepScore']) * 0.6 + df_fe['StressScore'] * 0.4
+        df_fe['DietQuality'] = raw_input["DietQuality"]
+        
+        return df_fe
 
     def predict_and_explain(self, user_input: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -459,6 +597,86 @@ class MLService:
         if not recs:
             recs.append({"id": "good", "title": "Looking good!", "description": "Your data looks healthy. Keep up the good work!", "priority": "LOW", "impact": "Maintain your habits", "icon": "checkmark-circle-outline", "color": "#10B981", "bgColor": "#F0FDF4"})
         return recs
+
+    def explain_anomaly(self, log_data: Dict[str, Any], user_data: Dict[str, Any]) -> str:
+        """Dynamically generate SHAP explanation for anomaly using Isolation Forest"""
+        if self.isolation_forest_model is None or self.iso_explainer is None:
+            return "Unusual Behavior Pattern"
+        try:
+            df_fe = self._build_full_features(log_data, user_data)
+            expected = list(self.isolation_forest_model.feature_names_in_)
+            for col in expected:
+                if col not in df_fe.columns:
+                    df_fe[col] = 0
+            df_model = df_fe[expected]
+            
+            shap_values = self.iso_explainer.shap_values(df_model)
+            # For Isolation Forest, negative scores mean anomaly.
+            # SHAP values that are NEGATIVE push the score towards anomaly.
+            vals = shap_values[0]
+            feature_names = df_model.columns
+            # Get features with the most negative impact
+            idx = np.argsort(vals)[:2] 
+            
+            reasons = []
+            for j in idx:
+                if vals[j] < -0.01: # only consider if it significantly pulled score down
+                    feat_name = feature_names[j]
+                    suggestion = self._FEATURE_SUGGESTIONS.get(feat_name, f"Unusual {feat_name}")
+                    if suggestion not in reasons:
+                        reasons.append(suggestion)
+            
+            if reasons:
+                return "Anomaly driven by: " + " and ".join(reasons)
+            return "Unusual Behavior Pattern Detected"
+        except Exception as e:
+            logger.error(f"Error explaining anomaly: {e}")
+            return "Unusual Behavior Pattern"
+
+    def explain_behavior(self, log_data: Dict[str, Any], user_data: Dict[str, Any], cluster_id: int) -> str:
+        """Dynamically generate SHAP explanation for behavior cluster"""
+        if self.kmeans_model is None or self.kmeans_explainer is None:
+            names = {0: "Balanced & Active", 1: "High Stress & Sedentary", 2: "Low Sleep & Fatigued", 3: "High Energy & Productive"}
+            return names.get(cluster_id, "Unknown pattern")
+            
+        try:
+            df_fe = self._build_full_features(log_data, user_data)
+            expected = list(self.kmeans_model.feature_names_in_)
+            for col in expected:
+                if col not in df_fe.columns:
+                    df_fe[col] = 0
+            df_model = df_fe[expected]
+            
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                shap_values = self.kmeans_explainer.shap_values(df_model)
+                
+            # For KMeans shap_values, it might return a list of arrays (one for each cluster) or a single array
+            # If it's a list, get the one for the assigned cluster
+            if isinstance(shap_values, list):
+                vals = shap_values[cluster_id][0]
+            else:
+                vals = shap_values[0]
+                
+            feature_names = df_model.columns
+            # Features that push the sample towards THIS cluster are positive SHAP values (or absolute largest)
+            # For KMeans explainer, positive SHAP value means it pushes the output (cluster probability or distance) higher
+            idx = np.argsort(np.abs(vals))[::-1][:3]
+            
+            reasons = []
+            for j in idx:
+                feat_name = feature_names[j]
+                if "Score" in feat_name or "Index" in feat_name or "Time" in feat_name or "Hours" in feat_name:
+                    direction = "High" if df_model[feat_name].iloc[0] > self.kmeans_model.cluster_centers_[cluster_id][j] else "Low"
+                    reasons.append(f"{direction} {feat_name}")
+            
+            if reasons:
+                return "Key drivers: " + ", ".join(reasons)
+            return "General healthy behavior"
+        except Exception as e:
+            logger.error(f"Error explaining behavior: {e}")
+            return "Behavior pattern analysis unavailable"
 
 
 # Create singleton instance

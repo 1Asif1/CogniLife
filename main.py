@@ -438,7 +438,7 @@ async def auth_signup(email: str, password: str, name: str):
             # Insert profile row
             client_service = create_client(settings.supabase_url, settings.supabase_service_key)
             client_service.table("users").insert([{
-                "id": user_id,
+                "user_id": user_id,
                 "email": email,
                 "name": name,
             }]).execute()

@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/Card';
+import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
-import { CustomModal } from '../../components/CustomModal';
 
 // LAN IP for mobile device testing
 const LAN_IP = "192.168.29.161";
@@ -27,8 +27,8 @@ const CircularProgressMock = ({ score }: { score: number }) => (
 );
 
 const RiskCard = ({ title, percent, trend, icon, color, bgColor, onPress }: any) => (
-  <TouchableOpacity 
-    style={[styles.riskCard, { backgroundColor: bgColor }]} 
+  <TouchableOpacity
+    style={[styles.riskCard, { backgroundColor: bgColor }]}
     onPress={onPress}
     activeOpacity={0.7}
   >
@@ -46,7 +46,7 @@ const RiskCard = ({ title, percent, trend, icon, color, bgColor, onPress }: any)
 
 const InsightAlert = ({ text, icon, color, bgColor }: any) => {
   const points = text.includes('; ') ? text.split('; ') : [text];
-  
+
   return (
     <View style={[styles.insightAlert, { backgroundColor: bgColor, borderColor: color + '20' }]}>
       <View style={[styles.insightIconContainer, { backgroundColor: color + '15' }]}>
@@ -67,6 +67,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [behaviorCluster, setBehaviorCluster] = useState<any>(null);
+  const [anomaly, setAnomaly] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRisk, setSelectedRisk] = useState<{ visible: boolean; title: string; message: string }>({
     visible: false,
@@ -91,16 +93,37 @@ export default function HomeScreen() {
       const userId = userProfile?.id || user?.id;
       if (!userId) return;
 
-      const url = `${API_BASE_URL}/api/users/${userId}/action-plan`;
+      const actionPlanUrl = `${API_BASE_URL}/api/users/${userId}/action-plan`;
+      const dashboardUrl = `${API_BASE_URL}/api/users/${userId}/dashboard`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      const response = await fetch(url, { signal: controller.signal });
+      const [actionPlanRes, dashboardRes] = await Promise.all([
+        fetch(actionPlanUrl, { signal: controller.signal }).catch(() => null),
+        fetch(dashboardUrl, { signal: controller.signal }).catch(() => null)
+      ]);
       clearTimeout(timeoutId);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (actionPlanRes && actionPlanRes.ok) {
+        const data = await actionPlanRes.json();
         setRecommendations(data.recommendations || []);
+      }
+
+      if (dashboardRes && dashboardRes.ok) {
+        const dbData = await dashboardRes.json();
+
+        // Extract the latest behavior cluster
+        if (dbData.recent_behavior_clusters && dbData.recent_behavior_clusters.length > 0) {
+          setBehaviorCluster(dbData.recent_behavior_clusters[0]);
+        }
+
+        // Extract recent anomaly if present and it's an actual anomaly
+        if (dbData.recent_anomalies && dbData.recent_anomalies.length > 0) {
+          const latestAnomaly = dbData.recent_anomalies[0];
+          if (latestAnomaly.is_anomaly) {
+            setAnomaly(latestAnomaly);
+          }
+        }
       }
     } catch (err) {
       console.error("[Home] Fetch error:", err);
@@ -142,7 +165,7 @@ export default function HomeScreen() {
       const reasons = parts.slice(1).join(". ").replace(/\.$/, "").split("; ");
       reasonText = `${riskLevel}.\n\nWhy?\n` + reasons.map((r: string) => `• ${r}`).join("\n");
     }
-    
+
     if (rec.priority === "CRITICAL") {
       return {
         title: defaultTitle,
@@ -158,7 +181,7 @@ export default function HomeScreen() {
         })
       };
     }
-    
+
     return {
       title: defaultTitle,
       percent: 45,
@@ -178,8 +201,8 @@ export default function HomeScreen() {
   const calculateHealthScore = () => {
     let score = 95;
     recommendations.forEach(rec => {
-       if (rec.priority === "CRITICAL") score -= 15;
-       else if (rec.priority === "HIGH") score -= 8;
+      if (rec.priority === "CRITICAL") score -= 15;
+      else if (rec.priority === "HIGH") score -= 8;
     });
     return Math.max(0, Math.min(100, score));
   };
@@ -187,19 +210,19 @@ export default function HomeScreen() {
   // Get AI insights from the top recommendations
   const getInsights = () => {
     if (recommendations.length === 0) {
-      return [{ 
-        text: "Your health metrics look great! Keep up the good habits.", 
-        icon: "checkmark-circle", 
-        color: theme.colors.success, 
-        bgColor: theme.colors.successLight 
+      return [{
+        text: "Your health metrics look great! Keep up the good habits.",
+        icon: "checkmark-circle",
+        color: theme.colors.success,
+        bgColor: theme.colors.successLight
       }];
     }
-    
+
     return recommendations.slice(0, 3).map(rec => ({
-       text: rec.impact || rec.description,
-       icon: rec.icon,
-       color: rec.color,
-       bgColor: rec.bgColor
+      text: rec.impact || rec.description,
+      icon: rec.icon,
+      color: rec.color,
+      bgColor: rec.bgColor
     }));
   };
 
@@ -246,6 +269,30 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
+
+        {anomaly && (
+          <View style={styles.anomalyBanner}>
+            <Ionicons name="warning-outline" size={24} color="#FFF" style={{ marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.anomalyTitle}>Anomaly Detected</Text>
+              <Text style={styles.anomalyDesc}>We noticed an unusual pattern: {anomaly.anomaly_type || 'Please review your recent health logs.'}</Text>
+            </View>
+          </View>
+        )}
+
+        {behaviorCluster && (
+          <Card style={styles.behaviorCard}>
+            <View style={styles.behaviorHeader}>
+              <View style={styles.behaviorIcon}>
+                <Ionicons name="person-circle-outline" size={24} color={theme.colors.primary} />
+              </View>
+              <Text style={styles.behaviorTitle}>Your Behavior Profile</Text>
+            </View>
+            <Text style={styles.behaviorName}>{behaviorCluster.cluster_name}</Text>
+            <Text style={styles.behaviorDesc}>{behaviorCluster.behavior_pattern}</Text>
+          </Card>
+        )}
+
         <View style={styles.sectionHeader}>
           <Ionicons name="heart-outline" size={20} color={theme.colors.danger} />
           <Text style={styles.sectionTitle}>Health Risks</Text>
@@ -269,12 +316,12 @@ export default function HomeScreen() {
         </View>
 
         {insights.map((insight, index) => (
-          <InsightAlert 
+          <InsightAlert
             key={index}
             text={insight.text}
-            icon={insight.icon} 
-            color={insight.color} 
-            bgColor={insight.bgColor} 
+            icon={insight.icon}
+            color={insight.color}
+            bgColor={insight.bgColor}
           />
         ))}
 
@@ -301,8 +348,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 32, fontWeight: '700', color: '#FFF' },
   logButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   logButtonText: { color: '#FFF', fontWeight: '600' },
-  scoreCardContainer: { 
-    marginTop: -100, 
+  scoreCardContainer: {
+    marginTop: -100,
     marginHorizontal: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -332,13 +379,13 @@ const styles = StyleSheet.create({
   riskTitle: { ...theme.typography.small, fontWeight: '600', marginBottom: 4 },
   riskPercent: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   riskTrend: { fontSize: 12, fontWeight: '600' },
-  insightAlert: { 
-    flexDirection: 'row', 
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1, 
-    marginBottom: 12, 
-    alignItems: 'flex-start' 
+  insightAlert: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+    alignItems: 'flex-start'
   },
   insightIconContainer: {
     padding: 8,
@@ -350,9 +397,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 2,
   },
-  insightText: { 
-    fontSize: 14, 
+  insightText: {
+    fontSize: 14,
     lineHeight: 22,
     fontWeight: '500',
   },
+  anomalyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.danger,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: theme.colors.danger,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  anomalyTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 2 },
+  anomalyDesc: { fontSize: 14, color: 'rgba(255,255,255,0.9)', lineHeight: 20 },
+  behaviorCard: {
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  behaviorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  behaviorIcon: { marginRight: 8, backgroundColor: theme.colors.primaryLight + '20', padding: 6, borderRadius: 10 },
+  behaviorTitle: { ...theme.typography.small, color: theme.colors.textSecondary, fontWeight: '600' },
+  behaviorName: { fontSize: 20, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
+  behaviorDesc: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 20 },
 });
