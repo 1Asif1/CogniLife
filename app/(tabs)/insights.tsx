@@ -33,16 +33,32 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
   const fetchLogs = async () => {
   try {
     console.log("FETCHING FROM SUPABASE...");
+    const {
+  data: { user },
+} = await supabase.auth.getUser();
 
-    const { data, error } = await supabase
-      .from("daily_logs")
-      .select("*")
-      .order("date", { ascending: true });
+const userId = user?.id;
+
+    const today = new Date();
+const last7 = new Date();
+last7.setDate(today.getDate() - 7);
+
+const { data, error } = await supabase
+  .from("daily_logs")
+  .select("*")
+  .eq("user_id", userId) // 🔥 FILTER USER
+  .gte("date", last7.toISOString().split("T")[0]) // optional (last 7 days)
+  .order("date", { ascending: true });
 
     if (error) {
       console.log("SUPABASE ERROR:", error);
       return;
     }
+    if (!data || data.length === 0) {
+  console.log("No logs for this user");
+  setLogs([]);
+  return;
+}
 
     console.log("SUPABASE DATA:", data);
 
@@ -58,12 +74,37 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
   useEffect(() => {
     fetchLogs();
   }, []);
+  
+  
 
   if (loading) {
     return <Text>Loading logs...</Text>;
   }
+  if (logs.length === 0) {
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 30 }}>
+      <Ionicons name="analytics-outline" size={70} color="#7C3AED" />
+      <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 20, color: "#1F2937" }}>
+        No Insights Yet
+      </Text>
+      <Text
+        style={{
+          fontSize: 14,
+          color: "#6B7280",
+          textAlign: "center",
+          marginTop: 10,
+          lineHeight: 22,
+        }}
+      >
+        Start logging your daily sleep, screen time, activity and sitting habits
+        to unlock personalized health insights.
+      </Text>
+    </View>
+  );
+}
 
   // 🔥 PROCESS DATA FOR CHARTS
+
   const labels = logs.map((item) => {
   if (!item.date) return "";
   const [year, month, day] = item.date.split("-");
@@ -75,6 +116,63 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
   const sittingData = logs.map(item => item.sitting_time || 0);
   // 🔥 LATEST VALUES (for cards)
   const latest = logs[logs.length - 1] || {};
+  const avgSleep = (
+  sleepData.reduce((a, b) => a + b, 0) / (sleepData.length || 1)
+).toFixed(1);
+
+const avgScreen = (
+  screenData.reduce((a, b) => a + b, 0) / (screenData.length || 1)
+).toFixed(1);
+
+const avgSteps = (
+  stepsData.reduce((a, b) => a + b, 0) / (stepsData.length || 1)
+).toFixed(0);
+
+const avgSitting = (
+  sittingData.reduce((a, b) => a + b, 0) / (sittingData.length || 1)
+).toFixed(1);
+const sleepComment =
+  Number(avgSleep) < 5
+    ? "Your pillow misses you."
+    : Number(avgSleep) < 7
+    ? "You and sleep are in a complicated relationship."
+    : "Sleep game strong this week.";
+
+const screenComment =
+  Number(avgScreen) > 8
+    ? "Your phone knows you better than people do."
+    : Number(avgScreen) > 5
+    ? "Digital detox is sending friend requests."
+    : "Healthy screen discipline detected.";
+
+const stepsComment =
+  Number(avgSteps) < 3000
+    ? "Your shoes are feeling unemployed."
+    : Number(avgSteps) < 7000
+    ? "Movement exists. Commitment pending."
+    : "Your legs deserve respect.";
+
+const sittingComment =
+  Number(avgSitting) > 10
+    ? "Chairperson of the sedentary committee."
+    : Number(avgSitting) > 6
+    ? "Too much desk diplomacy."
+    : "Body says thanks for moving.";
+    let weeklyVibe = "A balanced week overall.";
+
+if (Number(avgSleep) < 5 && Number(avgScreen) > 7) {
+  weeklyVibe = "Your body tried, your screen won.";
+} else if (Number(avgSteps) > 7000 && Number(avgSleep) > 7) {
+  weeklyVibe = "A surprisingly disciplined week. Respect.";
+} else if (Number(avgSitting) > 10) {
+  weeklyVibe = "This week was sponsored by chairs.";
+}
+const warnings = [];
+
+if (Number(avgSleep) < 5) warnings.push("Poor Sleep");
+if (Number(avgScreen) > 7) warnings.push("High Screen Use");
+if (Number(avgSteps) < 3000) warnings.push("Low Activity");
+if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
 
   return (
     <ScrollView style={styles.container} bounces={false}>
@@ -140,18 +238,96 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
           </Card>
         </View>
       </View>
+      <View
+  style={{
+    marginHorizontal: 24,
+    marginBottom: 20,
+    backgroundColor: "#7C3AED",
+    borderRadius: 20,
+    padding: 20,
+  }}
+>
+  <Text style={{ fontSize: 18, fontWeight: "700", color: "white", marginBottom: 8 }}>
+    This Week's Vibe
+  </Text>
+  <Text style={{ color: "#E9D5FF", fontSize: 14 }}>{weeklyVibe}</Text>
+</View>
+
+{warnings.length > 0 && (
+  <View style={{ paddingHorizontal: 24, marginBottom: 20 }}>
+    <Text style={{ fontSize: 16, fontWeight: "700", marginBottom: 10 }}>
+      Health Flags
+    </Text>
+
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+      {warnings.map((warn, index) => (
+        <View
+          key={index}
+          style={{
+            backgroundColor: "#7C3AED",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 20,
+          }}
+        >
+          <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>
+            {warn}
+          </Text>
+        </View>
+      ))}
+    </View>
+  </View>
+)}
 
       {/* CONTENT */}
       <View style={styles.content}>
         
         {/* SLEEP GRAPH */}
         <Card style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Sleep Pattern</Text>
+  <Text style={styles.chartTitle}>Sleep Pattern</Text>
+  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sleepComment}</Text>
+
+  <LineChart
+    data={{
+      labels: labels,
+      datasets: [{ data: sleepData }]
+    }}
+    width={screenWidth - 80}
+    height={180}
+    chartConfig={chartConfig}
+    bezier
+    style={styles.chart}
+  />
+</Card>
+        {/* SCREEN TIME GRAPH */}
+        <Card style={styles.chartCard}>
+  <Text style={styles.chartTitle}>Screen Time</Text>
+  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{screenComment}</Text>
+
+  <BarChart
+    data={{
+      labels: labels,
+      datasets: [{ data: screenData }]
+    }}
+    width={screenWidth - 80}
+    height={180}
+    chartConfig={{
+      ...chartConfig,
+      color: () => theme.colors.danger
+    }}
+    style={styles.chart}
+  />
+</Card>
+       
+       
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Activity Trend</Text>
+          <Text style={{ color: "#6B7280", marginBottom: 10 }}>{stepsComment}</Text>
 
           <LineChart
             data={{
               labels: labels,
-              datasets: [{ data: sleepData }]
+              datasets: [{ data: stepsData }]
             }}
             width={screenWidth - 80}
             height={180}
@@ -161,41 +337,10 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
           />
         </Card>
 
-        {/* SCREEN TIME GRAPH */}
-        <Card style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Screen Time</Text>
 
-          <BarChart
-            data={{
-              labels: labels,
-              datasets: [{ data: screenData }]
-            }}
-            width={screenWidth - 80}
-            height={180}
-            chartConfig={{
-              ...chartConfig,
-              color: () => theme.colors.danger
-            }}
-            style={styles.chart}
-          />
-        </Card>
-        <Card style={styles.chartCard}>
-  <Text style={styles.chartTitle}>Activity Trend</Text>
-
-  <LineChart
-    data={{
-      labels: labels,
-      datasets: [{ data: stepsData }]
-    }}
-    width={screenWidth - 80}
-    height={180}
-    chartConfig={chartConfig}
-    bezier
-    style={styles.chart}
-  />
-</Card>
 <Card style={styles.chartCard}>
   <Text style={styles.chartTitle}>Sitting Time</Text>
+  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sittingComment}</Text>
 
   <BarChart
     data={{
