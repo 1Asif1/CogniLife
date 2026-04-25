@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { screenTimeService, ScreenTimeData } from './screenTimeService';
-import { getHealthData, HealthData, requestHealthPermissions, hasHealthPermissions } from './healthConnectService';
+import { getHealthData, hasHealthPermissions, HealthData } from './healthConnectService';
+import { ScreenTimeData, screenTimeService } from './screenTimeService';
 
 export interface ManualLogData {
   mealsPerDay: number;
@@ -67,8 +67,19 @@ export async function collectAutoData(): Promise<AutoCollectedData> {
   };
 }
 
+import { Platform } from 'react-native';
+
+// LAN IP for mobile device testing
+const LAN_IP = "192.168.29.161";
+
+const API_BASE_URL =
+  Platform.OS === "web"
+    ? "http://localhost:8001"
+    : `http://${LAN_IP}:8001`;
+
 /**
- * Submit a daily log entry (upsert - one per user per day)
+ * Submit a daily log entry via the FastAPI backend
+ * This will trigger the ML models and save predictions, anomalies, behavior clusters, and insights
  */
 export async function submitDailyLog(
   userId: string,
@@ -78,31 +89,36 @@ export async function submitDailyLog(
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
-    const { error } = await supabase
-      .from('daily_logs')
-      .upsert(
-        {
-          user_id: userId,
-          date: today,
-          screen_time: autoData.screenTime,
-          late_night_usage: autoData.lateNightUsage,
-          sleep_hours: autoData.sleepHours,
-          activity_level: autoData.activityLevel,
-          sitting_time: autoData.sittingTime,
-          inactivity_periods: autoData.inactivityPeriods,
-          steps: autoData.steps,
-          meals_per_day: manualData.mealsPerDay,
-          calorie_intake: manualData.calorieIntake,
-        },
-        {
-          onConflict: 'user_id,date',
-        }
-      );
+    const response = await fetch(`${API_BASE_URL}/api/logs/process?user_id=${userId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        date: today,
+        screen_time: autoData.screenTime,
+        late_night_usage: autoData.lateNightUsage,
+        sleep_hours: autoData.sleepHours,
+        activity_level: autoData.activityLevel,
+        sitting_time: autoData.sittingTime,
+        inactivity_periods: autoData.inactivityPeriods,
+        steps: autoData.steps,
+        meals_per_day: manualData.mealsPerDay,
+        calorie_intake: manualData.calorieIntake,
+      }),
+    });
 
-    if (error) throw error;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to process log on server');
+    }
+
+    const result = await response.json();
+    console.log('Successfully processed daily log and generated ML results:', result);
+    
     return { success: true };
   } catch (error: any) {
-    console.error('Failed to submit daily log:', error);
+    console.error('Failed to submit daily log to backend:', error);
     return { success: false, error: error.message || 'Failed to save daily log' };
   }
 }
@@ -196,24 +212,24 @@ export async function getStreakData(userId: string): Promise<{ currentStreak: nu
       const mostRecent = logDates[0];
       const diffTimeMostRecent = Math.abs(today.getTime() - mostRecent.getTime());
       const diffDaysMostRecent = Math.floor(diffTimeMostRecent / (1000 * 60 * 60 * 24));
-      
+
       if (diffDaysMostRecent <= 1) {
-         // The streak is still alive
-         let streak = 1;
-         for (let i = 0; i < logDates.length - 1; i++) {
-           const d1 = logDates[i];
-           const d2 = logDates[i + 1];
-           const diff = Math.abs(d1.getTime() - d2.getTime());
-           const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-           if (days === 1) {
-             streak++;
-           } else if (days > 1) {
-             break;
-           }
-         }
-         currentStreak = streak;
+        // The streak is still alive
+        let streak = 1;
+        for (let i = 0; i < logDates.length - 1; i++) {
+          const d1 = logDates[i];
+          const d2 = logDates[i + 1];
+          const diff = Math.abs(d1.getTime() - d2.getTime());
+          const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+          if (days === 1) {
+            streak++;
+          } else if (days > 1) {
+            break;
+          }
+        }
+        currentStreak = streak;
       } else {
-         currentStreak = 0;
+        currentStreak = 0;
       }
     }
 
