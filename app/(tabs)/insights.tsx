@@ -6,6 +6,7 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { supabase } from "../../lib/supabase";
+import { calculateStreak } from "./streaks";
 const screenWidth = Dimensions.get('window').width;
 
 const chartConfig = {
@@ -174,6 +175,8 @@ if (Number(avgScreen) > 7) warnings.push("High Screen Use");
 if (Number(avgSteps) < 3000) warnings.push("Low Activity");
 if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
 
+const streak = calculateStreak(logs);
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
@@ -248,9 +251,34 @@ if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
   }}
 >
   <Text style={{ fontSize: 18, fontWeight: "700", color: "white", marginBottom: 8 }}>
-    This Week's Vibe
+  This Week's Vibe
+</Text>
+
+<Text style={{ color: "#E9D5FF", fontSize: 14 }}>
+  {weeklyVibe}
+</Text>
+</View>
+
+<View
+  style={{
+    marginHorizontal: 24,
+    marginBottom: 20,
+    backgroundColor: "#F59E0B",
+    borderRadius: 20,
+    padding: 20,
+  }}
+>
+  <Text style={{ fontSize: 18, fontWeight: "700", color: "white" }}>
+    Activity Streak
   </Text>
-  <Text style={{ color: "#E9D5FF", fontSize: 14 }}>{weeklyVibe}</Text>
+
+  <Text style={{ fontSize: 28, fontWeight: "800", color: "white", marginTop: 6 }}>
+    🔥 {streak} days
+  </Text>
+
+  <Text style={{ color: "#FEF3C7", marginTop: 6 }}>
+    Keep logging daily to maintain your streak
+  </Text>
 </View>
 
 {warnings.length > 0 && (
