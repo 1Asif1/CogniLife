@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { Card } from '../../components/Card';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from '../../components/Button';
-import { Input } from '../../components/Input';
+import { Card } from '../../components/Card';
 import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
+import { Input } from '../../components/Input';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';

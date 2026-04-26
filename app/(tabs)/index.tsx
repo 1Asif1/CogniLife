@@ -280,18 +280,27 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {behaviorCluster && (
-          <Card style={styles.behaviorCard}>
-            <View style={styles.behaviorHeader}>
-              <View style={styles.behaviorIcon}>
-                <Ionicons name="person-circle-outline" size={24} color={theme.colors.primary} />
-              </View>
-              <Text style={styles.behaviorTitle}>Your Behavior Profile</Text>
+        <Card style={styles.behaviorCard}>
+          <View style={styles.behaviorHeader}>
+            <View style={styles.behaviorIcon}>
+              <Ionicons name="person-circle-outline" size={24} color={theme.colors.primary} />
             </View>
-            <Text style={styles.behaviorName}>{behaviorCluster.cluster_name}</Text>
-            <Text style={styles.behaviorDesc}>{behaviorCluster.behavior_pattern}</Text>
-          </Card>
-        )}
+            <Text style={styles.behaviorTitle}>Your Behavior Profile</Text>
+          </View>
+          {behaviorCluster ? (
+            <>
+              <Text style={styles.behaviorName}>{behaviorCluster.cluster_label}</Text>
+              <Text style={styles.behaviorDesc}>{behaviorCluster.behavior_pattern}</Text>
+            </>
+          ) : (
+            <View style={styles.emptyBehavior}>
+              <Text style={styles.emptyBehaviorText}>Log your daily health data to see your behavior profile</Text>
+              <TouchableOpacity onPress={() => router.push('/daily-log')} style={styles.logNowBtn}>
+                <Text style={styles.logNowBtnText}>Log Now</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Card>
 
         <View style={styles.sectionHeader}>
           <Ionicons name="heart-outline" size={20} color={theme.colors.danger} />
@@ -430,4 +439,8 @@ const styles = StyleSheet.create({
   behaviorTitle: { ...theme.typography.small, color: theme.colors.textSecondary, fontWeight: '600' },
   behaviorName: { fontSize: 20, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
   behaviorDesc: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 20 },
+  emptyBehavior: { alignItems: 'center', paddingVertical: 16 },
+  emptyBehaviorText: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 12 },
+  logNowBtn: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: theme.colors.primary, borderRadius: 20 },
+  logNowBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 });

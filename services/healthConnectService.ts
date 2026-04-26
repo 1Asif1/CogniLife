@@ -1,4 +1,4 @@
-import { Platform, Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 export type ConfirmDialog = (config: {
   title: string;

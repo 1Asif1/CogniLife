@@ -1,36 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../constants/theme';
-import { Card } from '../components/Card';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
 import { CustomModal } from '../components/CustomModal';
+import { theme } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
-import { screenTimeService } from '../services/screenTimeService';
 import {
-  isHealthConnectAvailable,
-  hasHealthPermissions,
-  requestHealthPermissions,
-  initializeHealthConnect,
-} from '../services/healthConnectService';
-import {
-  collectAutoData,
-  submitDailyLog,
-  getTodayLog,
-  AutoCollectedData,
+    AutoCollectedData,
+    collectAutoData,
+    getTodayLog,
+    submitDailyLog,
 } from '../services/dailyLogService';
+import {
+    hasHealthPermissions,
+    initializeHealthConnect,
+    requestHealthPermissions
+} from '../services/healthConnectService';
+import { screenTimeService } from '../services/screenTimeService';
 
 const MEAL_OPTIONS = [1, 2, 3, 4, 5, 6];
 const CALORIE_PRESETS = [1200, 1500, 1800, 2000, 2500, 3000];

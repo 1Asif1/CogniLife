@@ -1,5 +1,5 @@
-import { Platform, Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert, Linking, Platform } from 'react-native';
 
 export type ConfirmDialog = (config: {
   title: string;

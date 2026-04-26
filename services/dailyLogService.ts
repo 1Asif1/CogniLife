@@ -89,6 +89,21 @@ export async function submitDailyLog(
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
+    console.log('Submitting daily log to backend:', API_BASE_URL);
+    console.log('User ID:', userId);
+    console.log('Log data:', {
+      date: today,
+      screen_time: autoData.screenTime,
+      late_night_usage: autoData.lateNightUsage,
+      sleep_hours: autoData.sleepHours,
+      activity_level: autoData.activityLevel,
+      sitting_time: autoData.sittingTime,
+      inactivity_periods: autoData.inactivityPeriods,
+      steps: autoData.steps,
+      meals_per_day: manualData.mealsPerDay,
+      calorie_intake: manualData.calorieIntake,
+    });
+
     const response = await fetch(`${API_BASE_URL}/api/logs/process?user_id=${userId}`, {
       method: 'POST',
       headers: {
@@ -108,9 +123,19 @@ export async function submitDailyLog(
       }),
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to process log on server');
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText };
+      }
+      throw new Error(errorData.error || errorData.detail || 'Failed to process log on server');
     }
 
     const result = await response.json();
@@ -119,6 +144,7 @@ export async function submitDailyLog(
     return { success: true };
   } catch (error: any) {
     console.error('Failed to submit daily log to backend:', error);
+    console.error('Error details:', error.message);
     return { success: false, error: error.message || 'Failed to save daily log' };
   }
 }
