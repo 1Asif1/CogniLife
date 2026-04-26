@@ -6,6 +6,7 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { supabase } from "../../lib/supabase";
+import { useSegments } from 'expo-router';
 const screenWidth = Dimensions.get('window').width;
 
 const chartConfig = {
@@ -13,7 +14,8 @@ const chartConfig = {
   backgroundGradientTo: '#FFF',
   color: (opacity = 1) => `rgba(124, 58, 237, ${opacity})`,
   strokeWidth: 2,
-  barPercentage: 0.6,
+  barPercentage: 0.5,
+  
   useShadowColorFromDataset: false,
   propsForLabels: { fontSize: 10, fill: theme.colors.textSecondary },
   propsForBackgroundLines: { stroke: theme.colors.border, strokeDasharray: '' }
@@ -315,6 +317,8 @@ if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
       ...chartConfig,
       color: () => theme.colors.danger
     }}
+    yLabelsOffset={20}
+    
     style={styles.chart}
   />
 </Card>

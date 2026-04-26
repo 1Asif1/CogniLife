@@ -260,28 +260,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </Card>
-        <Card style={styles.sectionCard}>
-          <View style={styles.sectionHeaderLine}>
-            <Ionicons name="fitness-outline" size={20} color={theme.colors.secondary} style={{ marginRight: 8 }} />
-            <Text style={styles.sectionTitle}>Health Overview</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>78</Text>
-              <Text style={styles.statLabel}>Health Score</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>142</Text>
-              <Text style={styles.statLabel}>Days Active</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>89%</Text>
-              <Text style={styles.statLabel}>Goal Rate</Text>
-            </View>
-          </View>
-        </Card>
+        
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Connected Devices</Text>
