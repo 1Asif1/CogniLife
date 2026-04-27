@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
   -- Manual entry
   meals_per_day INT DEFAULT 3,
   calorie_intake INT DEFAULT 0,
+  food_quality INT DEFAULT 1,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(user_id, date)
 );

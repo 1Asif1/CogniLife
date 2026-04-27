@@ -113,8 +113,9 @@ class SupabaseClient:
                 "sitting_time": log_data.get("sitting_time", 0),
                 "inactivity_periods": int(log_data.get("inactivity_periods", 0)),
                 "steps": int(log_data.get("steps", 0)),
-                "meals_per_day": int(log_data.get("meals_per_day", 3)),
+                "meals_per_day": int(log_data.get("meals_per_day", 1)),
                 "calorie_intake": int(log_data.get("calorie_intake", 0)),
+                "food_quality": int(log_data.get("food_quality", 1)),
                 "created_at": datetime.utcnow().isoformat()
             }
 

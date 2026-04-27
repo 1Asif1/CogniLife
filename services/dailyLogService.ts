@@ -5,6 +5,7 @@ import { ScreenTimeData, screenTimeService } from './screenTimeService';
 export interface ManualLogData {
   mealsPerDay: number;
   calorieIntake: number;
+  foodQuality: number;
 }
 
 export interface AutoCollectedData {
@@ -27,6 +28,7 @@ export interface DailyLogEntry {
   steps: number;
   mealsPerDay: number;
   calorieIntake: number;
+  foodQuality: number;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function submitDailyLog(
       steps: autoData.steps,
       meals_per_day: manualData.mealsPerDay,
       calorie_intake: manualData.calorieIntake,
+      food_quality: manualData.foodQuality,
     });
 
     const response = await fetch(`${API_BASE_URL}/api/logs/process?user_id=${userId}`, {
@@ -120,6 +123,7 @@ export async function submitDailyLog(
         steps: autoData.steps,
         meals_per_day: manualData.mealsPerDay,
         calorie_intake: manualData.calorieIntake,
+        food_quality: manualData.foodQuality,
       }),
     });
 
@@ -175,6 +179,7 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
       steps: data.steps || 0,
       mealsPerDay: data.meals_per_day || 3,
       calorieIntake: data.calorie_intake || 0,
+      foodQuality: data.food_quality ?? 1,
     };
   } catch (error) {
     console.error('Failed to fetch today\'s log:', error);

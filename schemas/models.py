@@ -42,6 +42,7 @@ class DailyLogCreate(BaseModel):
     steps: Optional[int] = 0
     meals_per_day: Optional[int] = 3
     calorie_intake: Optional[int] = 0
+    food_quality: Optional[int] = 1
 
 
 class DailyLogResponse(BaseModel):
@@ -58,6 +59,7 @@ class DailyLogResponse(BaseModel):
     steps: Optional[int] = 0
     meals_per_day: Optional[int] = 3
     calorie_intake: Optional[int] = 0
+    food_quality: Optional[int] = 1
     created_at: Optional[datetime] = None
 
     class Config:

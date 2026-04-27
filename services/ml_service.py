@@ -377,13 +377,8 @@ class MLService:
         meals = log_data.get("meals_per_day", 3)
         cal = log_data.get("calorie_intake", 1800)
 
-        # DietQuality heuristic (0-2): based on meals & calorie range
-        if meals >= 3 and 1500 <= cal <= 2500:
-            diet_quality = 2
-        elif meals >= 2 and 1200 <= cal <= 3000:
-            diet_quality = 1
-        else:
-            diet_quality = 0
+        # DietQuality: use user-provided food_quality directly (0=Poor, 1=Average, 2=Good)
+        diet_quality = int(log_data.get("food_quality", 1))
 
         height = float((user_data or {}).get("height", 170) or 170)
         weight = float((user_data or {}).get("weight", 70) or 70)

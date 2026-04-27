@@ -33,6 +33,11 @@ import { screenTimeService } from '../services/screenTimeService';
 
 const MEAL_OPTIONS = [1, 2, 3, 4, 5, 6];
 const CALORIE_PRESETS = [1200, 1500, 1800, 2000, 2500, 3000];
+const FOOD_QUALITY_OPTIONS = [
+  { value: 0, label: 'Poor', icon: 'sad-outline' as const, color: '#EF4444' },
+  { value: 1, label: 'Average', icon: 'remove-circle-outline' as const, color: '#F59E0B' },
+  { value: 2, label: 'Good', icon: 'happy-outline' as const, color: '#10B981' },
+];
 
 export default function DailyLogScreen() {
   const router = useRouter();
@@ -50,8 +55,10 @@ export default function DailyLogScreen() {
   });
 
   // Manual entry data
-  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [mealsPerDay, setMealsPerDay] = useState(1);
   const [calorieIntake, setCalorieIntake] = useState('');
+  const [existingCalories, setExistingCalories] = useState(0);
+  const [foodQuality, setFoodQuality] = useState(1);
 
   // Status states
   const [screenTimePermission, setScreenTimePermission] = useState(false);
@@ -97,7 +104,9 @@ export default function DailyLogScreen() {
       if (existing) {
         setExistingLog(true);
         setMealsPerDay(existing.mealsPerDay);
-        setCalorieIntake(existing.calorieIntake ? existing.calorieIntake.toString() : '');
+        setExistingCalories(existing.calorieIntake || 0);
+        setCalorieIntake('');
+        setFoodQuality(existing.foodQuality ?? 1);
         setAutoData({
           screenTime: existing.screenTime,
           lateNightUsage: existing.lateNightUsage,
@@ -199,13 +208,14 @@ export default function DailyLogScreen() {
       return;
     }
 
-    const calories = parseInt(calorieIntake) || 0;
+    const caloriesToAdd = parseInt(calorieIntake) || 0;
+    const totalCalories = existingCalories + caloriesToAdd;
 
     setSubmitting(true);
     const result = await submitDailyLog(
       user.id,
       autoData,
-      { mealsPerDay, calorieIntake: calories }
+      { mealsPerDay, calorieIntake: totalCalories, foodQuality }
     );
     setSubmitting(false);
 
@@ -323,7 +333,7 @@ export default function DailyLogScreen() {
               <View style={styles.dataMetrics}>
                 <View style={styles.metric}>
                   <Text style={styles.metricValue}>{autoData.screenTime.toFixed(1)}h</Text>
-                  <Text style={styles.metricLabel}>Total Today</Text>
+                  <Text style={styles.metricLabel}>Today's Screen Time</Text>
                 </View>
                 <View style={styles.metricDivider} />
                 <View style={styles.metric}>
@@ -405,7 +415,7 @@ export default function DailyLogScreen() {
           <Card style={styles.dataCard}>
             <Text style={styles.fieldLabel}>
               <Ionicons name="restaurant-outline" size={16} color={theme.colors.text} />
-              {'  '}Meals Per Day
+              {'  '}Which Meal of The Day
             </Text>
             <View style={styles.pillRow}>
               {MEAL_OPTIONS.map(num => (
@@ -424,10 +434,17 @@ export default function DailyLogScreen() {
 
           {/* Calorie Intake */}
           <Card style={styles.dataCard}>
-            <Text style={styles.fieldLabel}>
-              <Ionicons name="flame-outline" size={16} color={theme.colors.text} />
-              {'  '}Calorie Intake
-            </Text>
+            <View style={styles.calorieHeaderRow}>
+              <Text style={styles.fieldLabel}>
+                <Ionicons name="flame-outline" size={16} color={theme.colors.text} />
+                {'  '}Add Calories
+              </Text>
+              {existingCalories > 0 && (
+                <Text style={styles.existingCaloriesText}>
+                  Today's Total : {existingCalories} kcal
+                </Text>
+              )}
+            </View>
             <View style={styles.calorieInputRow}>
               <TextInput
                 style={styles.calorieInput}
@@ -455,6 +472,46 @@ export default function DailyLogScreen() {
                     calorieIntake === cal.toString() && styles.presetPillTextSelected,
                   ]}>
                     {cal}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Card>
+
+          {/* Food Quality */}
+          <Card style={styles.dataCard}>
+            <Text style={styles.fieldLabel}>
+              <Ionicons name="leaf-outline" size={16} color={theme.colors.text} />
+              {'  '}Food Quality
+            </Text>
+            <Text style={styles.foodQualityHint}>
+              Rate the overall quality of your meals today
+            </Text>
+            <View style={styles.foodQualityRow}>
+              {FOOD_QUALITY_OPTIONS.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.foodQualityOption,
+                    foodQuality === opt.value && {
+                      borderColor: opt.color,
+                      backgroundColor: opt.color + '12',
+                    },
+                  ]}
+                  onPress={() => setFoodQuality(opt.value)}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={28}
+                    color={foodQuality === opt.value ? opt.color : theme.colors.textSecondary + '80'}
+                  />
+                  <Text
+                    style={[
+                      styles.foodQualityLabel,
+                      foodQuality === opt.value && { color: opt.color, fontWeight: '700' as const },
+                    ]}
+                  >
+                    {opt.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -689,6 +746,17 @@ const styles = StyleSheet.create({
   pillTextSelected: {
     color: '#FFF',
   },
+  calorieHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  existingCaloriesText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.success,
+  },
   calorieInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -763,5 +831,30 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 20,
+  },
+  foodQualityHint: {
+    ...theme.typography.small,
+    color: theme.colors.textSecondary,
+    marginBottom: 14,
+    fontSize: 12,
+  },
+  foodQualityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  foodQualityOption: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    backgroundColor: '#FAFAFA',
+    gap: 6,
+  },
+  foodQualityLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
   },
 });
