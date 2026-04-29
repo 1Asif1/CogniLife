@@ -12,7 +12,7 @@ export default function TabLayout() {
           borderTopWidth: 0,
           elevation: 10,
           shadowOpacity: 0.1,
-          height: 65,
+          height: 75,
           paddingBottom: 10,
           paddingTop: 5,
         },

@@ -384,56 +384,52 @@ class MLService:
         weight = float((user_data or {}).get("weight", 70) or 70)
         gender_raw = str((user_data or {}).get("gender", "Male") or "Male")
 
+        screen_time = float(log_data.get("screen_time", 0) or 0)
+        late_night = float(log_data.get("late_night_usage", 0) or 0)
+
+        # StressLevel: dataset uses 0 (Low), 1 (Medium), 2 (High)
+        # Derive from available data to approximate the training distribution
+        sleep_hours = float(log_data.get("sleep_hours", 7) or 7)
+        sitting_time = float(log_data.get("sitting_time", 4) or 4)
+        inactivity = int(log_data.get("inactivity_periods", 1) or 1)
+        raw_stress = (screen_time * 0.3 + late_night * 2 + (10 - sleep_hours) * 0.4 + inactivity * 0.3)
+        # Map continuous stress to 0/1/2 bins matching training data distribution
+        if raw_stress < 3:
+            stress_level = 0
+        elif raw_stress < 5:
+            stress_level = 1
+        else:
+            stress_level = 2
+
+        # dopamine_score: ScreenTime * 0.5 + LateNightUsage * 0.5 (matches training data)
+        dopamine_score = screen_time * 0.5 + late_night * 0.5
+
         return {
-            "ScreenTime": float(log_data.get("screen_time", 0) or 0),
-            "SleepHours": float(log_data.get("sleep_hours", 7) or 7),
-            "LateNightUsage": float(log_data.get("late_night_usage", 0) or 0),
+            "ScreenTime": screen_time,
+            "SleepHours": sleep_hours,
+            "LateNightUsage": late_night,
             "ActivityLevel": activity,
             "DietQuality": diet_quality,
-            "SittingTime": float(log_data.get("sitting_time", 4) or 4),
-            "InactivityPeriods": int(log_data.get("inactivity_periods", 1) or 1),
+            "SittingTime": sitting_time,
+            "InactivityPeriods": inactivity,
+            "StressLevel": stress_level,
             "MealsPerDay": int(meals),
             "CalorieIntake": int(cal),
             "Gender": gender_raw,
             "Height": height,
             "Weight": weight,
+            "dopamine_score": dopamine_score,
         }
 
     def _build_full_features(self, log_data: Dict[str, Any], user_data: Dict[str, Any]) -> pd.DataFrame:
-        """Build full features dataframe for Isolation Forest and KMeans"""
+        """Build full features dataframe for Isolation Forest and KMeans.
+        Now uses fe_func which produces all 26 features."""
         raw_input = self._map_supabase_to_model_input(log_data, user_data)
         df = pd.DataFrame([raw_input])
         if self.fe_func:
             df_fe = self.fe_func(df)
         else:
             df_fe = df.copy()
-            
-        sleep_hours = float(log_data.get("sleep_hours", 7) or 7)
-        activity_level = raw_input["ActivityLevel"]
-        meals = raw_input["MealsPerDay"]
-        cal = raw_input["CalorieIntake"]
-        screen_time = raw_input["ScreenTime"]
-        sitting_time = raw_input["SittingTime"]
-        inactivity = raw_input["InactivityPeriods"]
-        late_night = raw_input["LateNightUsage"]
-        
-        stress_level = (screen_time * 0.3 + late_night * 2 + (10 - sleep_hours) * 0.4 + inactivity * 0.3)
-        stress_level = max(1, min(10, stress_level))
-        
-        df_fe['SleepScore'] = 1 - abs(sleep_hours - 7.5) / 7.5
-        df_fe['ActivityScore'] = activity_level / 5
-        df_fe['DietScore'] = meals / 5
-        df_fe['StressScore'] = stress_level / 10
-        df_fe['SedentaryIndex'] = (sitting_time + inactivity) / 20
-        df_fe['DigitalLoad'] = screen_time
-        
-        df_fe['LateNightImpact'] = late_night * 0.5
-        df_fe['CalorieBalance'] = 1 - abs(cal - 2000)/2000
-        df_fe['MealScore'] = df_fe['DietScore']
-        df_fe['DopamineScore'] = (screen_time * 0.4 + late_night * 2 + stress_level * 0.3 + (10 - sleep_hours) * 0.3)
-        df_fe['FatigueIndex'] = (1 - df_fe['SleepScore']) * 0.6 + df_fe['StressScore'] * 0.4
-        df_fe['DietQuality'] = raw_input["DietQuality"]
-        
         return df_fe
 
     def predict_and_explain(self, user_input: Dict[str, Any]) -> Dict[str, Any]:
@@ -446,8 +442,10 @@ class MLService:
 
         # Align columns with what the model was trained on
         expected_features = list(self.xgb_model.estimators_[0].feature_names_in_)
-        for col in expected_features:
-            if col not in df.columns:
+        missing = [col for col in expected_features if col not in df.columns]
+        if missing:
+            logger.warning(f"⚠️ Missing features filled with 0: {missing}")
+            for col in missing:
                 df[col] = 0
         df = df[expected_features]
 
@@ -550,11 +548,64 @@ class MLService:
             ui = self._TARGET_UI.get(target, {"icon": "alert-outline", "color": "#6B7280", "bgColor": "#F3F4F6"})
 
             # Build reasons and suggestions from SHAP top features
+            # Features where MORE is GOOD (positive SHAP means user's LOW value is pushing toward risk)
+            MORE_IS_GOOD = {
+                "ActivityLevel", "ActivityScore", "SleepHours", "SleepScore",
+                "DietQuality", "DietScore", "MealScore", "health_score",
+                "CalorieBalance", "MealsPerDay",
+            }
+            # Features where MORE is BAD (positive SHAP means user's HIGH value is pushing toward risk)
+            MORE_IS_BAD = {
+                "ScreenTime", "DigitalLoad", "StressLevel", "StressScore",
+                "LateNightUsage", "LateNightImpact", "SittingTime",
+                "SedentaryIndex", "InactivityPeriods", "dopamine_score",
+                "DopamineScore", "lifestyle_risk", "CalorieIntake",
+            }
+            # Human-readable feature names for display
+            FEATURE_NAMES = {
+                "ActivityLevel": "activity level",
+                "ActivityScore": "activity score",
+                "SleepHours": "sleep duration",
+                "SleepScore": "sleep score",
+                "DietQuality": "diet quality",
+                "DietScore": "diet score",
+                "MealScore": "meal score",
+                "health_score": "overall health score",
+                "CalorieBalance": "calorie balance",
+                "MealsPerDay": "meals per day",
+                "ScreenTime": "screen time",
+                "DigitalLoad": "digital load",
+                "StressLevel": "stress level",
+                "StressScore": "stress score",
+                "LateNightUsage": "late night phone usage",
+                "LateNightImpact": "late night usage impact",
+                "SittingTime": "sitting time",
+                "SedentaryIndex": "sedentary index",
+                "InactivityPeriods": "inactivity periods",
+                "dopamine_score": "dopamine score",
+                "DopamineScore": "dopamine score",
+                "lifestyle_risk": "lifestyle risk",
+                "CalorieIntake": "calorie intake",
+                "BMI": "BMI",
+                "bmi_category": "BMI category"
+            }
+
             reasons = []
             suggestions = []
             for feature, shap_val in data["top_features"]:
-                direction = "increasing" if shap_val > 0 else "reducing"
-                reasons.append(f"{feature} is {direction} the risk")
+                display_feature = FEATURE_NAMES.get(feature, feature.replace('_', ' '))
+                if shap_val > 0:
+                    # This feature is pushing toward higher risk
+                    if feature in MORE_IS_GOOD:
+                        reasons.append(f"Low {display_feature} is increasing the risk")
+                    else:
+                        reasons.append(f"High {display_feature} is increasing the risk")
+                else:
+                    # This feature is reducing risk
+                    if feature in MORE_IS_GOOD:
+                        reasons.append(f"Good {display_feature} is reducing the risk")
+                    else:
+                        reasons.append(f"Low {display_feature} is reducing the risk")
                 suggestion = self._FEATURE_SUGGESTIONS.get(feature)
                 if suggestion and suggestion not in suggestions:
                     suggestions.append(suggestion)

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
@@ -8,7 +8,7 @@ import { theme } from '../../constants/theme';
 import { supabase } from "../../lib/supabase";
 
 
-import { calculateStreak } from "./streaks";
+import { calculateStreak } from "../../services/streaks";
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -18,7 +18,7 @@ const chartConfig = {
   color: (opacity = 1) => `rgba(124, 58, 237, ${opacity})`,
   strokeWidth: 2,
   barPercentage: 0.5,
-  
+
   useShadowColorFromDataset: false,
   propsForLabels: { fontSize: 10, fill: theme.colors.textSecondary },
   propsForBackgroundLines: { stroke: theme.colors.border, strokeDasharray: '' }
@@ -32,89 +32,94 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
     <Text style={[styles.metricStatus, { color }]}>{status}</Text>
   </View>
 );
-    export default function InsightsScreen() {
-      const [logs, setLogs] = useState<any[]>([]);
-      const [loading, setLoading] = useState(true);
+export default function InsightsScreen() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const fetchLogs = async () => {
-  try {
-    console.log("FETCHING FROM SUPABASE...");
-    const {
-  data: { user },
-} = await supabase.auth.getUser();
+    try {
+      console.log("FETCHING FROM SUPABASE...");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-const userId = user?.id;
+      const userId = user?.id;
 
-    const today = new Date();
-const last7 = new Date();
-last7.setDate(today.getDate() - 7);
+      const today = new Date();
+      const last7 = new Date();
+      last7.setDate(today.getDate() - 7);
 
-const { data, error } = await supabase
-  .from("daily_logs")
-  .select("*")
-  .eq("user_id", userId) // 🔥 FILTER USER
-  .gte("date", last7.toISOString().split("T")[0]) // optional (last 7 days)
-  .order("date", { ascending: true });
+      const { data, error } = await supabase
+        .from("daily_logs")
+        .select("*")
+        .eq("user_id", userId) // 🔥 FILTER USER
+        .gte("date", last7.toISOString().split("T")[0]) // optional (last 7 days)
+        .order("date", { ascending: true });
 
-    if (error) {
-      console.log("SUPABASE ERROR:", error);
-      return;
+      if (error) {
+        console.log("SUPABASE ERROR:", error);
+        return;
+      }
+      if (!data || data.length === 0) {
+        console.log("No logs for this user");
+        setLogs([]);
+        return;
+      }
+
+      console.log("SUPABASE DATA:", data);
+
+      setLogs(data || []);
+    } catch (err) {
+      console.log("ERROR:", err);
+    } finally {
+      setLoading(false);
     }
-    if (!data || data.length === 0) {
-  console.log("No logs for this user");
-  setLogs([]);
-  return;
-}
-
-    console.log("SUPABASE DATA:", data);
-
-    setLogs(data || []);
-  } catch (err) {
-    console.log("ERROR:", err);
-  } finally {
-    setLoading(false);
-  }
 
   };
 
   useEffect(() => {
     fetchLogs();
   }, []);
-  
-  
+
+
 
   if (loading) {
-    return <Text>Loading logs...</Text>;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading your progress...</Text>
+      </View>
+    );
   }
   if (logs.length === 0) {
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 30 }}>
-      <Ionicons name="analytics-outline" size={70} color="#7C3AED" />
-      <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 20, color: "#1F2937" }}>
-        No Insights Yet
-      </Text>
-      <Text
-        style={{
-          fontSize: 14,
-          color: "#6B7280",
-          textAlign: "center",
-          marginTop: 10,
-          lineHeight: 22,
-        }}
-      >
-        Start logging your daily sleep, screen time, activity and sitting habits
-        to unlock personalized health insights.
-      </Text>
-    </View>
-  );
-}
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 30 }}>
+        <Ionicons name="analytics-outline" size={70} color="#7C3AED" />
+        <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 20, color: "#1F2937" }}>
+          No Insights Yet
+        </Text>
+        <Text
+          style={{
+            fontSize: 14,
+            color: "#6B7280",
+            textAlign: "center",
+            marginTop: 10,
+            lineHeight: 22,
+          }}
+        >
+          Start logging your daily sleep, screen time, activity and sitting habits
+          to unlock personalized health insights.
+        </Text>
+      </View>
+    );
+  }
 
   // 🔥 PROCESS DATA FOR CHARTS
 
   const labels = logs.map((item) => {
-  if (!item.date) return "";
-  const [year, month, day] = item.date.split("-");
-  return `${day}-${month}`;
-});
+    if (!item.date) return "";
+    const [year, month, day] = item.date.split("-");
+    return `${day}-${month}`;
+  });
   const sleepData = logs.map(item => item.sleep_hours || 0);
   const screenData = logs.map((item) => item.screen_time || 0);
   const stepsData = logs.map((item) => item.steps || 0);
@@ -122,69 +127,69 @@ const { data, error } = await supabase
   // 🔥 LATEST VALUES (for cards)
   const latest = logs[logs.length - 1] || {};
   const avgSleep = (
-  sleepData.reduce((a, b) => a + b, 0) / (sleepData.length || 1)
-).toFixed(1);
+    sleepData.reduce((a, b) => a + b, 0) / (sleepData.length || 1)
+  ).toFixed(1);
 
-const avgScreen = (
-  screenData.reduce((a, b) => a + b, 0) / (screenData.length || 1)
-).toFixed(1);
+  const avgScreen = (
+    screenData.reduce((a, b) => a + b, 0) / (screenData.length || 1)
+  ).toFixed(1);
 
-const avgSteps = (
-  stepsData.reduce((a, b) => a + b, 0) / (stepsData.length || 1)
-).toFixed(0);
+  const avgSteps = (
+    stepsData.reduce((a, b) => a + b, 0) / (stepsData.length || 1)
+  ).toFixed(0);
 
-const avgSitting = (
-  sittingData.reduce((a, b) => a + b, 0) / (sittingData.length || 1)
-).toFixed(1);
-const sleepComment =
-  Number(avgSleep) < 5
-    ? "Your pillow misses you."
-    : Number(avgSleep) < 7
-    ? "You and sleep are in a complicated relationship."
-    : "Sleep game strong this week.";
+  const avgSitting = (
+    sittingData.reduce((a, b) => a + b, 0) / (sittingData.length || 1)
+  ).toFixed(1);
+  const sleepComment =
+    Number(avgSleep) < 5
+      ? "Your pillow misses you."
+      : Number(avgSleep) < 7
+        ? "You and sleep are in a complicated relationship."
+        : "Sleep game strong this week.";
 
-const screenComment =
-  Number(avgScreen) > 8
-    ? "Your phone knows you better than people do."
-    : Number(avgScreen) > 5
-    ? "Digital detox is sending friend requests."
-    : "Healthy screen discipline detected.";
+  const screenComment =
+    Number(avgScreen) > 8
+      ? "Your phone knows you better than people do."
+      : Number(avgScreen) > 5
+        ? "Digital detox is sending friend requests."
+        : "Healthy screen discipline detected.";
 
-const stepsComment =
-  Number(avgSteps) < 3000
-    ? "Your shoes are feeling unemployed."
-    : Number(avgSteps) < 7000
-    ? "Movement exists. Commitment pending."
-    : "Your legs deserve respect.";
+  const stepsComment =
+    Number(avgSteps) < 3000
+      ? "Your shoes are feeling unemployed."
+      : Number(avgSteps) < 7000
+        ? "Movement exists. Commitment pending."
+        : "Your legs deserve respect.";
 
-const sittingComment =
-  Number(avgSitting) > 10
-    ? "Chairperson of the sedentary committee."
-    : Number(avgSitting) > 6
-    ? "Too much desk diplomacy."
-    : "Body says thanks for moving.";
-    let weeklyVibe = "A balanced week overall.";
+  const sittingComment =
+    Number(avgSitting) > 10
+      ? "Chairperson of the sedentary committee."
+      : Number(avgSitting) > 6
+        ? "Too much desk diplomacy."
+        : "Body says thanks for moving.";
+  let weeklyVibe = "A balanced week overall.";
 
-if (Number(avgSleep) < 5 && Number(avgScreen) > 7) {
-  weeklyVibe = "Your body tried, your screen won.";
-} else if (Number(avgSteps) > 7000 && Number(avgSleep) > 7) {
-  weeklyVibe = "A surprisingly disciplined week. Respect.";
-} else if (Number(avgSitting) > 10) {
-  weeklyVibe = "This week was sponsored by chairs.";
-}
-const warnings = [];
+  if (Number(avgSleep) < 5 && Number(avgScreen) > 7) {
+    weeklyVibe = "Your body tried, your screen won.";
+  } else if (Number(avgSteps) > 7000 && Number(avgSleep) > 7) {
+    weeklyVibe = "A surprisingly disciplined week. Respect.";
+  } else if (Number(avgSitting) > 10) {
+    weeklyVibe = "This week was sponsored by chairs.";
+  }
+  const warnings = [];
 
-if (Number(avgSleep) < 5) warnings.push("Poor Sleep");
-if (Number(avgScreen) > 7) warnings.push("High Screen Use");
-if (Number(avgSteps) < 3000) warnings.push("Low Activity");
-if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
+  if (Number(avgSleep) < 5) warnings.push("Poor Sleep");
+  if (Number(avgScreen) > 7) warnings.push("High Screen Use");
+  if (Number(avgSteps) < 3000) warnings.push("Low Activity");
+  if (Number(avgSitting) > 10) warnings.push("High Sitting Time");
 
-const streak = calculateStreak(logs);
+  const streak = calculateStreak(logs);
 
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
-        
+
         <GradientBackground style={styles.headerGradient}>
           <Text style={styles.title}>Behavior Insights</Text>
           <Text style={styles.subtitle}>Weekly trends and patterns</Text>
@@ -200,7 +205,7 @@ const streak = calculateStreak(logs);
 
             <MetricCard
               title="Screen_Time"
-              value={`${latest.screen_time|| 0} hrs`}
+              value={`${latest.screen_time || 0} hrs`}
               status="Trend"
               icon="phone-portrait-outline"
               color={theme.colors.danger}
@@ -208,7 +213,7 @@ const streak = calculateStreak(logs);
 
             <MetricCard
               title="Daily Steps"
-              value={`${latest.steps|| 0}`}
+              value={`${latest.steps || 0}`}
               status="Trend"
               icon="pulse-outline"
               color={theme.colors.warning}
@@ -246,114 +251,118 @@ const streak = calculateStreak(logs);
         </View>
       </View>
       <View
-  style={{
-    marginHorizontal: 24,
-    marginBottom: 20,
-    backgroundColor: "#7C3AED",
-    borderRadius: 20,
-    padding: 20,
-  }}
->
-  <Text style={{ fontSize: 18, fontWeight: "700", color: "white", marginBottom: 8 }}>
-  This Week's Vibe
-</Text>
+        style={{
+          marginHorizontal: 24,
+          marginBottom: 20,
+          marginTop: -25,
+          backgroundColor: "#7C3AED",
+          borderRadius: 20,
+          padding: 20,
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "white", marginBottom: 8 }}>
+          This Week's Vibe
+        </Text>
 
-<Text style={{ color: "#E9D5FF", fontSize: 14 }}>
-  {weeklyVibe}
-</Text>
-</View>
+        <Text style={{ color: "#E9D5FF", fontSize: 14 }}>
+          {weeklyVibe}
+        </Text>
+      </View>
 
-<View
-  style={{
-    marginHorizontal: 24,
-    marginBottom: 20,
-    backgroundColor: "#F59E0B",
-    borderRadius: 20,
-    padding: 20,
-  }}
->
-  <Text style={{ fontSize: 18, fontWeight: "700", color: "white" }}>
-    Activity Streak
-  </Text>
+      <View
+        style={{
+          marginHorizontal: 24,
+          marginBottom: 20,
+          backgroundColor: "#F59E0B",
+          borderRadius: 20,
+          padding: 20,
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "white" }}>
+          Activity Streak
+        </Text>
 
-  <Text style={{ fontSize: 28, fontWeight: "800", color: "white", marginTop: 6 }}>
-    🔥 {streak} days
-  </Text>
+        <Text style={{ fontSize: 28, fontWeight: "800", color: "white", marginTop: 6 }}>
+          🔥 {streak} days
+        </Text>
 
-  <Text style={{ color: "#FEF3C7", marginTop: 6 }}>
-    Keep logging daily to maintain your streak
-  </Text>
-</View>
+        <Text style={{ color: "#FEF3C7", marginTop: 6 }}>
+          Keep logging daily to maintain your streak
+        </Text>
+      </View>
 
-{warnings.length > 0 && (
-  <View style={{ paddingHorizontal: 24, marginBottom: 20 }}>
-    <Text style={{ fontSize: 16, fontWeight: "700", marginBottom: 10 }}>
-      Health Flags
-    </Text>
-
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-      {warnings.map((warn, index) => (
-        <View
-          key={index}
-          style={{
-            backgroundColor: "#7C3AED",
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 20,
-          }}
-        >
-          <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>
-            {warn}
+      {warnings.length > 0 && (
+        <View style={{ paddingHorizontal: 24, marginBottom: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", marginBottom: 10 }}>
+            Health Flags
           </Text>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {warnings.map((warn, index) => (
+              <View
+                key={index}
+                style={{
+                  backgroundColor: "#7C3AED",
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                }}
+              >
+                <Text style={{ color: "white", fontWeight: "600", fontSize: 12 }}>
+                  {warn}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-      ))}
-    </View>
-  </View>
-)}
+      )}
 
       {/* CONTENT */}
       <View style={styles.content}>
-        
+
         {/* SLEEP GRAPH */}
         <Card style={styles.chartCard}>
-  <Text style={styles.chartTitle}>Sleep Pattern</Text>
-  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sleepComment}</Text>
+          <Text style={styles.chartTitle}>Sleep Pattern</Text>
+          <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sleepComment}</Text>
 
-  <LineChart
-    data={{
-      labels: labels,
-      datasets: [{ data: sleepData }]
-    }}
-    width={screenWidth - 80}
-    height={180}
-    chartConfig={chartConfig}
-    bezier
-    style={styles.chart}
-  />
-</Card>
+          <LineChart
+            data={{
+              labels: labels,
+              datasets: [{ data: sleepData }]
+            }}
+            width={screenWidth - 80}
+            height={180}
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+          />
+        </Card>
         {/* SCREEN TIME GRAPH */}
         <Card style={styles.chartCard}>
-  <Text style={styles.chartTitle}>Screen Time</Text>
-  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{screenComment}</Text>
+          <Text style={styles.chartTitle}>Screen Time</Text>
+          <Text style={{ color: "#6B7280", marginBottom: 10 }}>{screenComment}</Text>
 
-  <BarChart
-    data={{
-      labels: labels,
-      datasets: [{ data: screenData }]
-    }}
-    width={screenWidth - 80}
-    height={180}
-    chartConfig={{
-      ...chartConfig,
-      color: () => theme.colors.danger
-    }}
-    yLabelsOffset={20}
-    
-    style={styles.chart}
-  />
-</Card>
-       
-       
+          <BarChart
+            data={{
+              labels: labels,
+              datasets: [{ data: screenData }]
+            }}
+            width={screenWidth - 80}
+            height={180}
+            chartConfig={{
+              ...chartConfig,
+              propsForBackgroundLines: { stroke: theme.colors.border,translateX: 55, strokeDasharray: '' },
+              color: () => theme.colors.danger
+            }}
+            yLabelsOffset={20}
+            
+            yAxisLabel=""
+            yAxisSuffix=""
+            style={styles.chart}
+          />
+        </Card>
+
+
         <Card style={styles.chartCard}>
           <Text style={styles.chartTitle}>Activity Trend</Text>
           <Text style={{ color: "#6B7280", marginBottom: 10 }}>{stepsComment}</Text>
@@ -368,30 +377,35 @@ const streak = calculateStreak(logs);
             chartConfig={chartConfig}
             bezier
             style={styles.chart}
+
+            
           />
         </Card>
 
 
-<Card style={styles.chartCard}>
-  <Text style={styles.chartTitle}>Sitting Time</Text>
-  <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sittingComment}</Text>
+        <Card style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Sitting Time</Text>
+          <Text style={{ color: "#6B7280", marginBottom: 10 }}>{sittingComment}</Text>
 
-  <BarChart
-    data={{
-      labels: labels,
-      datasets: [{ data: sittingData }]
-    }}
-    width={screenWidth - 80}
-    height={180}
-    chartConfig={chartConfig}
-    style={styles.chart}
-  />
-</Card>
+          <BarChart
+            data={{
+              labels: labels,
+              datasets: [{ data: sittingData }]
+            }}
+            width={screenWidth - 80}
+            height={180}
+            chartConfig={{...chartConfig,propsForBackgroundLines: { stroke: theme.colors.border,translateX: 55, strokeDasharray: '' },
+              }}
+            yAxisLabel=""
+            yAxisSuffix=""
+            style={styles.chart}
+          />
+        </Card>
       </View>
     </ScrollView>
   );
 
-  
+
 }
 
 
@@ -407,7 +421,7 @@ const styles = StyleSheet.create({
   metricTitle: { ...theme.typography.small, marginBottom: 4 },
   metricValue: { fontSize: 16, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
   metricStatus: { fontSize: 12, fontWeight: '600' },
-  summaryContainer: { width: '95%', alignSelf: 'center' ,shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, borderRadius: 16, marginTop: -40 },
+  summaryContainer: { width: '95%', alignSelf: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, borderRadius: 16, marginTop: -40 },
   summaryCard: { backgroundColor: theme.colors.primary, padding: 20 },
   summaryTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', marginBottom: 16 },
   summaryItem: { flexDirection: 'row', alignItems: 'center' },
@@ -423,4 +437,15 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.background, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border },
   badgeText: { fontSize: 12, color: theme.colors.textSecondary, marginLeft: 4 },
   chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
 });

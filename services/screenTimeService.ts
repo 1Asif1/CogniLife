@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Linking, Platform } from 'react-native';
+import ScreenTimeModule from 'screen-time-module';
 
 export type ConfirmDialog = (config: {
   title: string;
@@ -34,12 +35,28 @@ class ScreenTimeService {
    */
   async checkPermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
-    
+
+    // Prefer a real check against the native module instead of relying solely on stored flag
     try {
+      // If native module is available, try fetching usage stats; if it returns data, permission is effectively granted
+      if (ScreenTimeModule && typeof ScreenTimeModule.getUsageStats === 'function') {
+        try {
+          const data = await ScreenTimeModule.getUsageStats();
+          const has = (data && ((data.screenTime || 0) > 0 || (data.lateNightUsage || 0) > 0));
+          this.permissionGranted = !!has;
+          await AsyncStorage.setItem(SCREEN_TIME_PERMISSION_KEY, this.permissionGranted ? 'true' : 'false');
+          return this.permissionGranted;
+        } catch (e) {
+          // native call failed, fall back to stored flag
+          console.log('screenTimeService: native permission check failed', e);
+        }
+      }
+
       const stored = await AsyncStorage.getItem(SCREEN_TIME_PERMISSION_KEY);
       this.permissionGranted = stored === 'true';
       return this.permissionGranted;
-    } catch {
+    } catch (err) {
+      console.log('screenTimeService: checkPermission error', err);
       return false;
     }
   }
@@ -97,32 +114,25 @@ class ScreenTimeService {
    * NOTE: This is currently a simulation. In production, replace with
    * native module calls to UsageStatsManager.queryUsageStats()
    */
-  async getScreenTimeData(): Promise<ScreenTimeData> {
-    const hasPermission = await this.checkPermission();
-    
-    if (!hasPermission) {
-      return { screenTime: 0, lateNightUsage: 0 };
-    }
+async getScreenTimeData(): Promise<ScreenTimeData> {
+  const hasPermission = await this.checkPermission();
 
-    // Simulated data based on time of day
-    // Replace with actual native module call:
-    // const stats = await NativeScreenTimeModule.getUsageStats(startOfDay, now);
-    const now = new Date();
-    const hoursElapsed = now.getHours() + now.getMinutes() / 60;
-    
-    // Estimate ~40% of waking hours as screen time
-    const estimatedScreenTime = Math.round((hoursElapsed * 0.4) * 10) / 10;
-    
-    // Late night usage: estimate based on whether it's past 11 PM
-    const lateNightHours = now.getHours() >= 23 
-      ? (now.getHours() - 23 + now.getMinutes() / 60) 
-      : 0;
+  if (!hasPermission) {
+    return { screenTime: 0, lateNightUsage: 0 };
+  }
+
+  try {
+    const data = await ScreenTimeModule.getUsageStats();
 
     return {
-      screenTime: Math.max(0, estimatedScreenTime),
-      lateNightUsage: Math.round(lateNightHours * 10) / 10,
+      screenTime: Number(data.screenTime.toFixed(2)),
+      lateNightUsage: Number(data.lateNightUsage.toFixed(2)),
     };
+  } catch (e) {
+    console.log('Native error:', e);
+    return { screenTime: 0, lateNightUsage: 0 };
   }
+}
 
   /**
    * Check if the service is available on this platform

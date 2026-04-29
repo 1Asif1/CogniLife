@@ -308,7 +308,7 @@ export default function PrivacySecurityScreen() {
         <Card style={[styles.card, { borderWidth: 1, borderColor: theme.colors.danger + '30' }]}>
           <View style={styles.sectionRow}>
             <Ionicons name="warning-outline" size={20} color={theme.colors.danger} style={{ marginRight: 8 }} />
-            <Text style={[styles.sectionTitle, { color: theme.colors.danger }]}>Danger Zone</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.danger }]}>Data Management</Text>
           </View>
           <Text style={styles.dangerDesc}>These actions are permanent and cannot be reversed.</Text>
           <TouchableOpacity style={[styles.dangerBtn, styles.borderBottom]} onPress={handleDeleteHealthData} disabled={isDeleting}>

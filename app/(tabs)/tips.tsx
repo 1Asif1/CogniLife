@@ -101,18 +101,6 @@ const RecommendationCard = ({
           </View>
         </View>
       )}
-
-      {isLoading ? (
-        <View style={[styles.recButton, styles.disabledButton]}>
-          <Text style={styles.disabledButtonText}>Starting...</Text>
-        </View>
-      ) : (
-        <Button
-          title="Start This Goal"
-          onPress={onPress}
-          style={styles.recButton}
-        />
-      )}
     </Card>
   );
 };

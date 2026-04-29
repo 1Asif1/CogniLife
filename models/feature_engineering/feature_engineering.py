@@ -14,31 +14,12 @@ def feature_engineering(df):
     df['Gender'] = df['Gender'].map({'male': 0, 'female': 1}).fillna(0)
 
     # -------------------------------
-    # BMI (FROM SUPABASE)
+    # BMI (FROM SUPABASE) — only compute if Height/Weight present
     # -------------------------------
-    df['BMI'] = df['Weight'] / ((df['Height'] / 100) ** 2)
-
-    # -------------------------------
-    # STRESS LEVEL (DERIVED)
-    # -------------------------------
-    df['StressLevel'] = (
-        df['ScreenTime'] * 0.3 +
-        df['LateNightUsage'] * 2 +
-        (10 - df['SleepHours']) * 0.4 +
-        df['InactivityPeriods'] * 0.3
-    )
-    df['StressLevel'] = df['StressLevel'].clip(1, 10)
-
-    # -------------------------------
-    # DOPAMINE SCORE (DERIVED)
-    # -------------------------------
-    df['dopamine_score'] = (
-        df['ScreenTime'] * 0.4 +
-        df['LateNightUsage'] * 2 +
-        df['StressLevel'] * 0.3 +
-        (10 - df['SleepHours']) * 0.3
-    )
-    df['dopamine_score'] = df['dopamine_score'].clip(1, 10)
+    if 'Height' in df.columns and 'Weight' in df.columns:
+        df['BMI'] = df['Weight'] / ((df['Height'] / 100) ** 2)
+        df.drop(columns=['Height', 'Weight'], inplace=True)
+    # If BMI already exists (from dataset), keep it as-is
 
     # -------------------------------
     # BMI CATEGORY
@@ -56,17 +37,47 @@ def feature_engineering(df):
     df['bmi_category'] = df['BMI'].apply(bmi_category)
 
     # -------------------------------
-    # INTERNAL SCORES
+    # NOTE: StressLevel and dopamine_score are NOT derived here.
+    # They already exist in the dataset / are passed in from the caller.
+    # The model was trained on those original values:
+    #   StressLevel: 0 (Low), 1 (Medium), 2 (High)
+    #   dopamine_score: ScreenTime * 0.5 + LateNightUsage * 0.5
+    # -------------------------------
+
+    # -------------------------------
+    # INTERNAL SCORES (used for scoring AND as model features)
     # -------------------------------
     SleepScore = 1 - abs(df['SleepHours'] - 7.5) / 7.5
     ActivityScore = df['ActivityLevel'] / 5
-    DietScore = df['MealsPerDay'] / 5  # simplified proxy
+    DietScore = df['DietQuality'] / 5       # DietQuality: 0=Poor, 1=Average, 2=Good
     StressScore = df['StressLevel'] / 10
     SedentaryIndex = (df['SittingTime'] + df['InactivityPeriods']) / 20
     DigitalLoad = df['ScreenTime']
 
     # -------------------------------
-    # FINAL ENGINEERED FEATURES
+    # ENGINEERED FEATURES (model expects these)
+    # -------------------------------
+    df['SleepScore'] = SleepScore
+    df['ActivityScore'] = ActivityScore
+    df['DietScore'] = DietScore
+    df['StressScore'] = StressScore
+    df['SedentaryIndex'] = SedentaryIndex
+    df['DigitalLoad'] = DigitalLoad
+    df['LateNightImpact'] = df['LateNightUsage'] * 0.5
+    df['CalorieBalance'] = 1 - abs(df['CalorieIntake'] - 2000) / 2000
+    df['MealScore'] = DietScore
+    # DopamineScore is a separate composite feature from dopamine_score
+    # dopamine_score (lowercase) = ScreenTime*0.5 + LateNightUsage*0.5 (from dataset)
+    # DopamineScore (CamelCase) = broader composite score
+    df['DopamineScore'] = (
+        df['ScreenTime'] * 0.4 +
+        df['LateNightUsage'] * 2 +
+        df['StressLevel'] * 0.3 +
+        (10 - df['SleepHours']) * 0.3
+    )
+
+    # -------------------------------
+    # COMPOSITE FEATURES
     # -------------------------------
     df['health_score'] = (
         SleepScore +
@@ -84,33 +95,39 @@ def feature_engineering(df):
         (1 - ActivityScore) * 0.2
     )
 
-    # -------------------------------
-    # DROP RAW DB FIELDS (NOT USED IN MODEL)
-    # -------------------------------
-    df.drop(columns=['Height', 'Weight'], inplace=True)
+    # Handle missing values
+    df.fillna(df.mean(numeric_only=True), inplace=True)
 
     # -------------------------------
-    # FINAL FEATURE LIST (MODEL INPUT)
+    # FINAL FEATURE LIST — all 26 features the XGBoost model expects
     # -------------------------------
     final_features = [
         'ScreenTime',
         'SleepHours',
         'LateNightUsage',
         'ActivityLevel',
-        'MealsPerDay',
+        'DietQuality',
         'SittingTime',
         'InactivityPeriods',
         'StressLevel',
         'Gender',
+        'MealsPerDay',
         'CalorieIntake',
         'BMI',
         'dopamine_score',
         'lifestyle_risk',
         'health_score',
-        'bmi_category'
+        'bmi_category',
+        'SleepScore',
+        'DigitalLoad',
+        'LateNightImpact',
+        'ActivityScore',
+        'SedentaryIndex',
+        'CalorieBalance',
+        'MealScore',
+        'DietScore',
+        'StressScore',
+        'DopamineScore',
     ]
-
-    # Handle missing values
-    df.fillna(df.mean(numeric_only=True), inplace=True)
 
     return df[final_features]

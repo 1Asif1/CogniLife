@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Platform,
@@ -88,11 +88,30 @@ export default function DailyLogScreen() {
     loadData();
   }, []);
 
+  // Refresh when screen gains focus (debounced to 1s)
+  const lastFocusRef = useRef<number>(0);
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[DailyLog] screen focused');
+      const now = Date.now();
+      if (now - lastFocusRef.current < 1000) return;
+      lastFocusRef.current = now;
+      // call loadData to re-check permissions and fetch latest auto data
+      loadData();
+
+      return () => {
+        // noop cleanup
+      };
+    }, [user])
+  );
+
   const loadData = async () => {
+    console.log('[DailyLog] loadData start');
     setLoadingAuto(true);
 
     // Check permissions
     const hasScreenTime = await screenTimeService.checkPermission();
+    console.log('[DailyLog] screenTime permission:', hasScreenTime);
     setScreenTimePermission(hasScreenTime);
     
     const hasHealth = hasHealthPermissions();
@@ -122,6 +141,7 @@ export default function DailyLogScreen() {
     // Collect fresh auto data
     try {
       const data = await collectAutoData();
+      console.log('[DailyLog] collectAutoData result:', data);
       setAutoData(prev => ({
         ...prev,
         screenTime: data.screenTime || prev.screenTime,
