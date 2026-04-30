@@ -2,22 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Input } from '../../components/Input';
+import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslated } from '../../context/LanguageContext';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -31,41 +33,38 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const t = useTranslated({
+    appName: 'CogniLife',
+    appSubtitle: 'Your AI Health Intelligence',
+    cardTitle: 'Create Account',
+    cardSubtitle: 'Join CogniLife to start your journey',
+    nameLabel: 'Full Name',
+    namePlaceholder: 'John Doe',
+    emailLabel: 'Email',
+    passwordLabel: 'Password',
+    confirmPasswordLabel: 'Confirm Password',
+    signupBtn: 'Create Account',
+    hasAccount: 'Already have an account?',
+    signIn: 'Sign In',
+  });
+
   const handleSignup = async () => {
-    // Validation
-    if (!name.trim()) {
-      setError('Please enter your name');
-      return;
-    }
-    if (!email.trim()) {
-      setError('Please enter your email address');
-      return;
-    }
-    if (!password) {
-      setError('Please create a password');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (!name || !email || !password || !confirmPassword) {
+      setError('Please fill in all fields');
       return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-
     setError('');
     setLoading(true);
-
     try {
-      const { error: authError } = await signUp(email.trim(), password, name.trim());
-      if (authError) {
-        setError(authError.message);
-      } else {
-        router.replace('/onboarding/basic-info');
-      }
-    } catch (e: any) {
-      setError(e.message || 'An unexpected error occurred');
+      const { error: authError } = await signUp(email, password, name);
+      if (authError) setError(authError.message);
+      else router.replace('/onboarding/basic-info');
+    } catch (err: any) {
+      setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -74,131 +73,55 @@ export default function SignupScreen() {
   return (
     <GradientBackground>
       <SafeAreaView style={styles.safeArea}>
+        {/* FIXED CONTAINER: pointerEvents="box-none" is key */}
+        <View style={styles.topRightContainer} pointerEvents="box-none">
+          <LanguageSwitcher />
+        </View>
+
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Header */}
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent} 
+            keyboardShouldPersistTaps="always"
+          >
             <View style={styles.header}>
               <View style={styles.logoContainer}>
                 <Ionicons name="pulse" size={32} color={theme.colors.primary} />
               </View>
-              <Text style={styles.title}>CogniLife</Text>
-              <Text style={styles.subtitle}>Start your health journey today</Text>
+              <Text style={styles.title}>{t.appName}</Text>
+              <Text style={styles.subtitle}>{t.appSubtitle}</Text>
             </View>
 
-            {/* Signup Card */}
             <Card style={styles.card}>
-              <Text style={styles.cardTitle}>Create Account</Text>
-              <Text style={styles.cardSubtitle}>
-                Set up your profile to get personalized insights
-              </Text>
+              <Text style={styles.cardTitle}>{t.cardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{t.cardSubtitle}</Text>
 
-              {/* Error display */}
               {error ? (
                 <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={16} color={theme.colors.danger} />
+                  <Ionicons name="alert-circle" size={20} color={theme.colors.danger} />
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
               ) : null}
 
-              {/* Name */}
-              <Input
-                label="Full Name"
-                placeholder="John Doe"
-                autoCapitalize="words"
-                value={name}
-                onChangeText={(text) => {
-                  setName(text);
-                  setError('');
-                }}
-              />
-              
+              <Input label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChangeText={setName} autoCapitalize="words" />
+              <Input label={t.emailLabel} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+              <Input label={t.passwordLabel} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
+              <Input label={t.confirmPasswordLabel} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPassword} />
 
-              {/* Email */}
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setError('');
-                }}
-              />
-
-              {/* Password */}
-              <View>
-                <Input
-                  label="Password"
-                  placeholder="Min. 6 characters"
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setError('');
-                  }}
-                />
-                <TouchableOpacity
-                  style={styles.eyeIcon}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Confirm Password */}
-              <Input
-                label="Confirm Password"
-                placeholder="Re-enter your password"
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                value={confirmPassword}
-                onChangeText={(text) => {
-                  setConfirmPassword(text);
-                  setError('');
-                }}
-              />
-
-              {/* Signup Button */}
               {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                  <Text style={styles.loadingText}>Creating account...</Text>
-                </View>
+                <ActivityIndicator style={{ marginVertical: 20 }} color={theme.colors.primary} />
               ) : (
-                <Button
-                  title="Create Account"
-                  onPress={handleSignup}
-                  style={styles.button}
-                />
+                <Button title={t.signupBtn} onPress={handleSignup} style={styles.button} />
               )}
 
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>{t.hasAccount} </Text>
+                <TouchableOpacity onPress={() => router.back()}>
+                  <Text style={styles.linkText}>{t.signIn}</Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Login Link */}
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.linkContainer}
-              >
-                <Text style={styles.linkText}>
-                  Already have an account?{' '}
-                  <Text style={styles.linkHighlight}>Log In</Text>
-                </Text>
-              </TouchableOpacity>
             </Card>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -209,111 +132,28 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  card: {
-    padding: 24,
-  },
-  cardTitle: {
-    ...theme.typography.h2,
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    ...theme.typography.small,
-    marginBottom: 24,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.dangerLight,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  errorText: {
-    color: theme.colors.danger,
-    fontSize: 13,
-    flex: 1,
-  },
-  eyeIcon: {
+  flex: { flex: 1 },
+  topRightContainer: {
     position: 'absolute',
-    right: 14,
-    top: 38,
-    padding: 4,
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    zIndex: 100,
   },
-  button: {
-    marginTop: 8,
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  header: { alignItems: 'center', marginBottom: 32 },
+  logoContainer: {
+    width: 64, height: 64, backgroundColor: '#FFF', borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    marginTop: 8,
-    gap: 8,
-  },
-  loadingText: {
-    color: theme.colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: theme.colors.border,
-  },
-  dividerText: {
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    marginHorizontal: 12,
-  },
-  linkContainer: {
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  linkText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  linkHighlight: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
+  title: { fontSize: 28, fontWeight: '700', color: '#FFF' },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+  card: { padding: 24 },
+  cardTitle: { ...theme.typography.h2, marginBottom: 4 },
+  cardSubtitle: { ...theme.typography.small, marginBottom: 24 },
+  errorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.dangerLight, borderRadius: 10, padding: 12, marginBottom: 16, gap: 8 },
+  errorText: { color: theme.colors.danger, fontSize: 13, flex: 1 },
+  button: { marginTop: 8 },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
+  footerText: { color: theme.colors.textSecondary, fontSize: 14 },
+  linkText: { color: theme.colors.primary, fontSize: 14, fontWeight: '600' },
 });

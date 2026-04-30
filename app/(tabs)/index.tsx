@@ -8,6 +8,7 @@ import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslated } from '../../context/LanguageContext';
 
 // LAN IP for mobile device testing
 const LAN_IP = "192.168.29.161";
@@ -49,6 +50,7 @@ const InsightAlert = ({ text, icon, color, bgColor }: any) => {
 
   return (
     <View style={[styles.insightAlert, { backgroundColor: bgColor, borderColor: color + '20' }]}>
+      {/* FIXED: Changed <div> to <View> here */}
       <View style={[styles.insightIconContainer, { backgroundColor: color + '15' }]}>
         <Ionicons name={icon} size={20} color={color} />
       </View>
@@ -76,7 +78,29 @@ export default function HomeScreen() {
     message: "",
   });
 
-  // Fetch ML recommendations whenever the Home tab is focused
+  const t = useTranslated({
+    morning: "Good Morning",
+    afternoon: "Good Afternoon",
+    evening: "Good Evening",
+    logToday: "Log Today",
+    healthScore: "Overall Health Score",
+    scoreTrend: "Based on your latest data",
+    anomalyTitle: "Anomaly Detected",
+    behaviorTitle: "Your Behavior Profile",
+    emptyBehavior: "Log your daily health data to see your behavior profile",
+    logNow: "Log Now",
+    risksTitle: "Health Risks",
+    aiInsights: "AI Insights",
+    gotIt: "Got it",
+    lowRisk: "↓ Low Risk",
+    medRisk: "→ Medium Risk",
+    highRisk: "↑ High Risk",
+    diabetes: "Diabetes Risk",
+    anemia: "Anemia Risk",
+    pcos: "PCOS Risk",
+    fatigue: "Fatigue Level"
+  });
+
   useFocusEffect(
     useCallback(() => {
       if (userProfile?.id || user?.id) {
@@ -111,13 +135,9 @@ export default function HomeScreen() {
 
       if (dashboardRes && dashboardRes.ok) {
         const dbData = await dashboardRes.json();
-
-        // Extract the latest behavior cluster
         if (dbData.recent_behavior_clusters && dbData.recent_behavior_clusters.length > 0) {
           setBehaviorCluster(dbData.recent_behavior_clusters[0]);
         }
-
-        // Extract recent anomaly if present and it's an actual anomaly
         if (dbData.recent_anomalies && dbData.recent_anomalies.length > 0) {
           const latestAnomaly = dbData.recent_anomalies[0];
           if (latestAnomaly.is_anomaly) {
@@ -134,9 +154,9 @@ export default function HomeScreen() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    else if (hour < 17) return "Good Afternoon";
-    else return "Good Evening";
+    if (hour < 12) return t.morning;
+    else if (hour < 17) return t.afternoon;
+    else return t.evening;
   };
 
   const getRiskCardProps = (id: string, defaultTitle: string, defaultIcon: string) => {
@@ -145,39 +165,30 @@ export default function HomeScreen() {
       return {
         title: defaultTitle,
         percent: 12,
-        trend: "↓ Low Risk",
+        trend: t.lowRisk,
         icon: defaultIcon,
         color: theme.colors.success,
         bgColor: theme.colors.successLight,
         onPress: () => setSelectedRisk({
           visible: true,
           title: defaultTitle,
-          message: "Your risk is currently low based on your recent health logs and AI analysis. Keep up the good work!"
+          message: "Your risk is currently low. Keep up the good work!"
         })
       };
-    }
-
-    // Format the reason text nicely (replace semicolons with bullets)
-    let reasonText = rec.description || "";
-    if (reasonText.includes("; ")) {
-      const parts = reasonText.split(". ");
-      const riskLevel = parts[0];
-      const reasons = parts.slice(1).join(". ").replace(/\.$/, "").split("; ");
-      reasonText = `${riskLevel}.\n\nWhy?\n` + reasons.map((r: string) => `• ${r}`).join("\n");
     }
 
     if (rec.priority === "CRITICAL") {
       return {
         title: defaultTitle,
         percent: 85,
-        trend: "↑ High Risk",
+        trend: t.highRisk,
         icon: rec.icon || defaultIcon,
         color: theme.colors.danger,
         bgColor: theme.colors.dangerLight,
         onPress: () => setSelectedRisk({
           visible: true,
           title: defaultTitle,
-          message: reasonText
+          message: rec.description
         })
       };
     }
@@ -185,53 +196,23 @@ export default function HomeScreen() {
     return {
       title: defaultTitle,
       percent: 45,
-      trend: "→ Medium Risk",
+      trend: t.medRisk,
       icon: rec.icon || defaultIcon,
       color: theme.colors.warning,
       bgColor: theme.colors.warningLight,
       onPress: () => setSelectedRisk({
         visible: true,
         title: defaultTitle,
-        message: reasonText
+        message: rec.description
       })
     };
   };
 
-  // Calculate an overall health score based on the risks
-  const calculateHealthScore = () => {
-    let score = 95;
-    recommendations.forEach(rec => {
-      if (rec.priority === "CRITICAL") score -= 15;
-      else if (rec.priority === "HIGH") score -= 8;
-    });
-    return Math.max(0, Math.min(100, score));
-  };
-
-  // Get AI insights from the top recommendations
-  const getInsights = () => {
-    if (recommendations.length === 0) {
-      return [{
-        text: "Your health metrics look great! Keep up the good habits.",
-        icon: "checkmark-circle",
-        color: theme.colors.success,
-        bgColor: theme.colors.successLight
-      }];
-    }
-
-    return recommendations.slice(0, 3).map(rec => ({
-      text: rec.impact || rec.description,
-      icon: rec.icon,
-      color: rec.color,
-      bgColor: rec.bgColor
-    }));
-  };
-
-  const healthScore = calculateHealthScore();
-  const insights = getInsights();
-  const diabetesProps = getRiskCardProps('diabetesrisk', 'Diabetes Risk', 'water-outline');
-  const anemiaProps = getRiskCardProps('anemiarisk', 'Anemia Risk', 'heart-half-outline');
-  const pcosProps = getRiskCardProps('pcosrisk', 'PCOS Risk', 'fitness-outline');
-  const fatigueProps = getRiskCardProps('fatigue', 'Fatigue Level', 'moon-outline');
+  const healthScore = 95 - (recommendations.filter(r => r.priority === "CRITICAL").length * 15);
+  const diabetesProps = getRiskCardProps('diabetesrisk', t.diabetes, 'water-outline');
+  const anemiaProps = getRiskCardProps('anemiarisk', t.anemia, 'heart-half-outline');
+  const pcosProps = getRiskCardProps('pcosrisk', t.pcos, 'fitness-outline');
+  const fatigueProps = getRiskCardProps('fatigue', t.fatigue, 'moon-outline');
 
   return (
     <ScrollView style={styles.container} bounces={false}>
@@ -241,13 +222,11 @@ export default function HomeScreen() {
             <View style={styles.headerContent}>
               <View>
                 <Text style={styles.greeting}>{getGreeting()}</Text>
-                <Text style={styles.name}>
-                  {userProfile?.name || "User"}
-                </Text>
+                <Text style={styles.name}>{userProfile?.name || "User"}</Text>
               </View>
               <TouchableOpacity style={styles.logButton} onPress={() => router.push('/daily-log')}>
                 <Ionicons name="calendar-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.logButtonText}>Log Today</Text>
+                <Text style={styles.logButtonText}>{t.logToday}</Text>
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -256,12 +235,12 @@ export default function HomeScreen() {
         <View style={styles.scoreCardContainer}>
           <Card style={styles.scoreCard}>
             <View style={styles.scoreInfo}>
-              <Text style={styles.scoreLabel}>Overall Health Score</Text>
+              <Text style={styles.scoreLabel}>{t.healthScore}</Text>
               <View style={styles.scoreRow}>
                 <Text style={styles.scoreValue}>{healthScore}</Text>
                 <Text style={styles.scoreSub}>/100</Text>
               </View>
-              <Text style={styles.scoreTrend}>Based on your latest data</Text>
+              <Text style={styles.scoreTrend}>{t.scoreTrend}</Text>
             </View>
             <CircularProgressMock score={healthScore} />
           </Card>
@@ -269,13 +248,12 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
-
         {anomaly && (
           <View style={styles.anomalyBanner}>
             <Ionicons name="warning-outline" size={24} color="#FFF" style={{ marginRight: 12 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.anomalyTitle}>Anomaly Detected</Text>
-              <Text style={styles.anomalyDesc}>We noticed an unusual pattern: {anomaly.anomaly_type || 'Please review your recent health logs.'}</Text>
+              <Text style={styles.anomalyTitle}>{t.anomalyTitle}</Text>
+              <Text style={styles.anomalyDesc}>{anomaly.anomaly_type}</Text>
             </View>
           </View>
         )}
@@ -285,7 +263,7 @@ export default function HomeScreen() {
             <View style={styles.behaviorIcon}>
               <Ionicons name="person-circle-outline" size={24} color={theme.colors.primary} />
             </View>
-            <Text style={styles.behaviorTitle}>Your Behavior Profile</Text>
+            <Text style={styles.behaviorTitle}>{t.behaviorTitle}</Text>
           </View>
           {behaviorCluster ? (
             <>
@@ -294,9 +272,9 @@ export default function HomeScreen() {
             </>
           ) : (
             <View style={styles.emptyBehavior}>
-              <Text style={styles.emptyBehaviorText}>Log your daily health data to see your behavior profile</Text>
+              <Text style={styles.emptyBehaviorText}>{t.emptyBehavior}</Text>
               <TouchableOpacity onPress={() => router.push('/daily-log')} style={styles.logNowBtn}>
-                <Text style={styles.logNowBtnText}>Log Now</Text>
+                <Text style={styles.logNowBtnText}>{t.logNow}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -304,7 +282,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Ionicons name="heart-outline" size={20} color={theme.colors.danger} />
-          <Text style={styles.sectionTitle}>Health Risks</Text>
+          <Text style={styles.sectionTitle}>{t.risksTitle}</Text>
         </View>
 
         <View style={styles.grid}>
@@ -320,20 +298,19 @@ export default function HomeScreen() {
 
         <View style={[styles.sectionHeader, { marginTop: 32 }]}>
           <Ionicons name="sparkles-outline" size={20} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>AI Insights</Text>
+          <Text style={styles.sectionTitle}>{t.aiInsights}</Text>
           {loading && <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />}
         </View>
 
-        {insights.map((insight, index) => (
+        {recommendations.slice(0, 3).map((rec, index) => (
           <InsightAlert
             key={index}
-            text={insight.text}
-            icon={insight.icon}
-            color={insight.color}
-            bgColor={insight.bgColor}
+            text={rec.impact || rec.description}
+            icon={rec.icon}
+            color={rec.color}
+            bgColor={rec.bgColor}
           />
         ))}
-
       </View>
 
       <CustomModal
@@ -342,7 +319,7 @@ export default function HomeScreen() {
         message={selectedRisk.message}
         onConfirm={() => setSelectedRisk((prev) => ({ ...prev, visible: false }))}
         showCancel={false}
-        confirmText="Got it"
+        confirmText={t.gotIt}
       />
     </ScrollView>
   );
@@ -357,16 +334,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 32, fontWeight: '700', color: '#FFF' },
   logButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   logButtonText: { color: '#FFF', fontWeight: '600' },
-  scoreCardContainer: {
-    marginTop: -100,
-    marginHorizontal: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 10,
-  },
+  scoreCardContainer: { marginTop: -100, marginHorizontal: 24, elevation: 5, zIndex: 10 },
   scoreCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   scoreInfo: { flex: 1 },
   scoreLabel: { ...theme.typography.small, color: theme.colors.textSecondary, marginBottom: 8 },
@@ -388,52 +356,14 @@ const styles = StyleSheet.create({
   riskTitle: { ...theme.typography.small, fontWeight: '600', marginBottom: 4 },
   riskPercent: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   riskTrend: { fontSize: 12, fontWeight: '600' },
-  insightAlert: {
-    flexDirection: 'row',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginBottom: 12,
-    alignItems: 'flex-start'
-  },
-  insightIconContainer: {
-    padding: 8,
-    borderRadius: 12,
-    marginRight: 16,
-  },
-  insightTextContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingTop: 2,
-  },
-  insightText: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  anomalyBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.danger,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: theme.colors.danger,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  anomalyTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 2 },
-  anomalyDesc: { fontSize: 14, color: 'rgba(255,255,255,0.9)', lineHeight: 20 },
-  behaviorCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surface,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primary,
-  },
+  insightAlert: { flexDirection: 'row', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
+  insightIconContainer: { padding: 8, borderRadius: 12, marginRight: 16 },
+  insightTextContainer: { flex: 1, justifyContent: 'center' },
+  insightText: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  anomalyBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.danger, padding: 16, borderRadius: 16, marginBottom: 20 },
+  anomalyTitle: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  anomalyDesc: { fontSize: 14, color: 'rgba(255,255,255,0.9)' },
+  behaviorCard: { padding: 16, borderRadius: 16, backgroundColor: theme.colors.surface, marginBottom: 24, borderLeftWidth: 4, borderLeftColor: theme.colors.primary },
   behaviorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   behaviorIcon: { marginRight: 8, backgroundColor: theme.colors.primaryLight + '20', padding: 6, borderRadius: 10 },
   behaviorTitle: { ...theme.typography.small, color: theme.colors.textSecondary, fontWeight: '600' },

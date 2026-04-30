@@ -1,12 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { CustomModal } from '../../components/CustomModal';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Input } from '../../components/Input';
+import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
@@ -39,7 +50,7 @@ const SettingItem = ({ icon, title, subtitle, showBorder = true, onPress }: any)
 
 export default function ProfileScreen() {
   const [device, setDevice] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [foundDevices, setFoundDevices] = useState<BluetoothDevice[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -50,7 +61,6 @@ export default function ProfileScreen() {
     showCancel?: boolean;
   } | null>(null);
 
-  // Edit Profile State
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editName, setEditName] = useState('');
   const [editHeight, setEditHeight] = useState('');
@@ -91,18 +101,14 @@ export default function ProfileScreen() {
       setEditError('Name is required');
       return;
     }
-
     setEditLoading(true);
     setEditError('');
-
     const updates = {
       name: editName.trim(),
       height: editHeight ? parseFloat(editHeight) : null,
       weight: editWeight ? parseFloat(editWeight) : null,
     };
-
     const { error: updateError } = await updateUserProfile(updates);
-
     if (updateError) {
       setEditError(updateError.message || 'Failed to update profile');
       setEditLoading(false);
@@ -120,7 +126,7 @@ export default function ProfileScreen() {
       onConfirm: async () => {
         setModalVisible(false);
         setDevice(null);
-        setMessage("Device disconnected successfully ");
+        setMessage('Device disconnected successfully');
       },
       showCancel: true,
     });
@@ -130,27 +136,17 @@ export default function ProfileScreen() {
   const handleAddDevice = async () => {
     setIsScanning(true);
     setFoundDevices([]);
-
     try {
-      await bluetoothDeviceService.startScan(
-        (device: BluetoothDevice) => {
-          setFoundDevices((prev) => {
-            // Avoid duplicates
-            if (!prev.find((d) => d.id === device.id)) {
-              return [...prev, device];
-            }
-            return prev;
-          });
-        },
-        5000 // 5 second scan
-      );
+      await bluetoothDeviceService.startScan((device: BluetoothDevice) => {
+        setFoundDevices((prev) => {
+          if (!prev.find((d) => d.id === device.id)) return [...prev, device];
+          return prev;
+        });
+      }, 5000);
 
-      // Check if we found devices after scan completes
       setTimeout(async () => {
         setIsScanning(false);
-        
         if (foundDevices.length > 0) {
-          // Show devices to user to select
           setModalConfig({
             title: 'Device Found',
             message: `Found ${foundDevices.length} device(s). Connecting to ${foundDevices[0].name}?`,
@@ -159,16 +155,16 @@ export default function ProfileScreen() {
               const connected = await bluetoothDeviceService.connectToDevice(foundDevices[0].id);
               if (connected) {
                 setDevice(foundDevices[0].name || 'Unknown Device');
-                setMessage("Connected successfully ");
+                setMessage('Connected successfully');
               } else {
-                setMessage("Connection failed ");
+                setMessage('Connection failed');
               }
             },
             showCancel: true,
           });
           setModalVisible(true);
         } else {
-          setMessage("No devices found ");
+          setMessage('No devices found');
           setModalConfig({
             title: 'No Devices',
             message: 'No compatible health devices found nearby. Make sure Bluetooth is enabled and your device is in pairing mode.',
@@ -179,7 +175,7 @@ export default function ProfileScreen() {
       }, 10000);
     } catch (error) {
       setIsScanning(false);
-      setMessage("Scan failed ");
+      setMessage('Scan failed');
       setModalConfig({
         title: 'Error',
         message: 'Failed to scan for devices. Please check Bluetooth permissions.',
@@ -191,6 +187,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container} bounces={false}>
+      {/* ── Header ── */}
       <View style={styles.topSection}>
         <GradientBackground style={styles.headerGradient}>
           <Text style={styles.title}>Profile</Text>
@@ -206,23 +203,25 @@ export default function ProfileScreen() {
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{userProfile?.name || 'User'}</Text>
                 <Text style={styles.profileMember}>
-                  Member since {userProfile?.created_at ? new Date(userProfile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '----'}
+                  Member since{' '}
+                  {userProfile?.created_at
+                    ? new Date(userProfile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+                    : '----'}
                 </Text>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
                 <Text style={styles.editBtnText}>Edit</Text>
               </TouchableOpacity>
             </View>
-
             <View style={styles.divider} />
             <InfoRow icon="mail-outline" text={userProfile?.email || 'user@example.com'} />
-            
             <InfoRow icon="body-outline" text={`${userProfile?.height || '--'}cm • ${userProfile?.weight || '--'}kg`} />
           </Card>
         </View>
       </View>
 
       <View style={styles.content}>
+        {/* ── Activity Streak ── */}
         <Card style={styles.sectionCard}>
           <View style={styles.sectionHeaderLine}>
             <Ionicons name="flame" size={20} color="#EA580C" style={{ marginRight: 8 }} />
@@ -253,15 +252,14 @@ export default function ProfileScreen() {
               <Text style={styles.streakLabel}>Total{'\n'}Logs</Text>
             </View>
           </View>
-
           <View style={styles.streakBanner}>
             <Text style={styles.streakBannerText}>
               🔥 {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''} in a row! Keep it up!
             </Text>
           </View>
         </Card>
-        
 
+        {/* ── Connected Devices ── */}
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Connected Devices</Text>
           {device ? (
@@ -274,10 +272,7 @@ export default function ProfileScreen() {
                 <Text style={styles.deviceSub}>Connected</Text>
                 <Text style={styles.deviceSync}>Last sync: Just now</Text>
               </View>
-              <TouchableOpacity
-                style={styles.disconnectBtn}
-                onPress={handleDisconnect}
-              >
+              <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect}>
                 <Text style={styles.disconnectBtnText}>Disconnect</Text>
               </TouchableOpacity>
             </View>
@@ -292,19 +287,30 @@ export default function ProfileScreen() {
               </View>
             </View>
           )}
-          <TouchableOpacity 
-            style={styles.addDeviceBtn} 
-            onPress={handleAddDevice}
-          >
+          <TouchableOpacity style={styles.addDeviceBtn} onPress={handleAddDevice}>
             <Text style={styles.addDeviceText}>+ Add New Device</Text>
           </TouchableOpacity>
-          {message !== "" && (
-            <Text style={{ marginTop: 10, textAlign: "center" }}>
-              {message}
-            </Text>
-         )}
+          {message !== '' && (
+            <Text style={{ marginTop: 10, textAlign: 'center' }}>{message}</Text>
+          )}
         </Card>
 
+        {/* ── Language (standalone card) ── */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.langCardHeader}>
+            <View style={styles.langIconBg}>
+              <Ionicons name="language-outline" size={20} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.sectionTitle}>Language</Text>
+          </View>
+          <Text style={styles.langHint}>
+            Choose the language for the app interface
+          </Text>
+          {/* LanguageSwitcher renders its own trigger row + bottom-sheet modal */}
+          <LanguageSwitcher userId={userProfile?.id} />
+        </Card>
+
+        {/* ── Account ── */}
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Account</Text>
           <SettingItem icon="notifications-outline" title="Notifications" subtitle="Manage" onPress={() => router.push('/notifications-settings')} />
@@ -312,20 +318,23 @@ export default function ProfileScreen() {
           <SettingItem icon="apps-outline" title="App Permissions" subtitle="Review" showBorder={false} onPress={() => router.push('/app-permissions')} />
         </Card>
 
+        {/* ── Support ── */}
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Support</Text>
           <SettingItem icon="help-circle-outline" title="Help Center" onPress={() => router.push('/help-center')} />
           <SettingItem icon="medkit-outline" title="Contact Doctors" showBorder={false} onPress={() => router.push('/contact-doctors')} />
         </Card>
 
+        {/* ── Logout ── */}
         <TouchableOpacity style={styles.logoutCard} onPress={handleLogout}>
-           <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} style={{ marginRight: 8 }} />
-           <Text style={styles.logoutText}>Log Out</Text>
+          <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} style={{ marginRight: 8 }} />
+          <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>CogniLife v1.0.0</Text>
       </View>
 
+      {/* ── Confirmation modal ── */}
       <CustomModal
         visible={modalVisible}
         title={modalConfig?.title || ''}
@@ -335,7 +344,7 @@ export default function ProfileScreen() {
         showCancel={modalConfig?.showCancel}
       />
 
-      {/* Edit Profile Modal */}
+      {/* ── Edit Profile modal ── */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -343,8 +352,8 @@ export default function ProfileScreen() {
         onRequestClose={() => setEditModalVisible(false)}
       >
         <View style={styles.editModalOverlay}>
-          <KeyboardAvoidingView 
-            style={styles.editModalKeyboard} 
+          <KeyboardAvoidingView
+            style={styles.editModalKeyboard}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.editModalContent}>
@@ -369,7 +378,6 @@ export default function ProfileScreen() {
                   value={editName}
                   onChangeText={(text) => { setEditName(text); setEditError(''); }}
                 />
-
                 <Input
                   label="Height (cm)"
                   placeholder="e.g. 175"
@@ -377,7 +385,6 @@ export default function ProfileScreen() {
                   value={editHeight}
                   onChangeText={(text) => { setEditHeight(text); setEditError(''); }}
                 />
-
                 <Input
                   label="Weight (kg)"
                   placeholder="e.g. 70"
@@ -392,11 +399,7 @@ export default function ProfileScreen() {
                     <Text style={styles.loadingText}>Saving...</Text>
                   </View>
                 ) : (
-                  <Button
-                    title="Save Changes"
-                    onPress={handleSaveProfile}
-                    style={styles.saveBtn}
-                  />
+                  <Button title="Save Changes" onPress={handleSaveProfile} style={styles.saveBtn} />
                 )}
               </ScrollView>
             </View>
@@ -430,11 +433,6 @@ const styles = StyleSheet.create({
   sectionCard: { marginBottom: 24, padding: 20 },
   sectionHeaderLine: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   sectionTitle: { ...theme.typography.h3 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  statBox: { alignItems: 'center', flex: 1 },
-  statValue: { fontSize: 24, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
-  statLabel: { fontSize: 12, color: theme.colors.textSecondary },
-  statDivider: { width: 1, backgroundColor: theme.colors.border, height: '100%' },
   streakStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   streakBox: { alignItems: 'center', flex: 1 },
   streakIconBg: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
@@ -448,24 +446,29 @@ const styles = StyleSheet.create({
   deviceTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
   deviceSub: { fontSize: 13, color: theme.colors.text, marginBottom: 2 },
   deviceSync: { fontSize: 12, color: theme.colors.textSecondary },
-  connectedBadge: { flexDirection: 'row', alignItems: 'center' },
-  connectedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.success, marginRight: 6 },
-  connectedText: { fontSize: 12, color: theme.colors.success, fontWeight: '500' },
   addDeviceBtn: { paddingVertical: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, alignItems: 'center' },
   addDeviceText: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '500' },
   disconnectBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.danger + '15', borderRadius: 8 },
   disconnectBtnText: { color: theme.colors.danger, fontSize: 13, fontWeight: '600' },
+
+  // Language card
+  langCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 },
+  langIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.primary + '15', justifyContent: 'center', alignItems: 'center' },
+  langHint: { fontSize: 13, color: theme.colors.textSecondary, marginBottom: 12 },
+
+  // Settings
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
   settingBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   settingIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FAFAFA', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   settingContent: { flex: 1 },
   settingTitle: { fontSize: 15, fontWeight: '500', color: theme.colors.text },
   settingSubtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4 },
+
   logoutCard: { backgroundColor: theme.colors.danger + '10', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 16, borderRadius: 12, marginBottom: 24 },
   logoutText: { color: theme.colors.danger, fontSize: 16, fontWeight: '600' },
   version: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12 },
-  
-  // Edit Modal Styles
+
+  // Edit modal
   editModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   editModalKeyboard: { flex: 1, justifyContent: 'flex-end' },
   editModalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
@@ -476,5 +479,5 @@ const styles = StyleSheet.create({
   errorText: { color: theme.colors.danger, fontSize: 13, flex: 1 },
   saveBtn: { marginTop: 8, marginBottom: 20 },
   loadingContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, marginTop: 8, marginBottom: 20, gap: 8 },
-  loadingText: { color: theme.colors.primary, fontSize: 16, fontWeight: '600' }
+  loadingText: { color: theme.colors.primary, fontSize: 16, fontWeight: '600' },
 });

@@ -1,7 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useTranslated } from "../../context/LanguageContext";
 
 export default function TabLayout() {
+  // Define tab translations
+  const t = useTranslated({
+    home: "Home",
+    insights: "Insights",
+    tips: "Tips",
+    profile: "Profile",
+  });
+
   return (
     <Tabs
       screenOptions={{
@@ -21,7 +30,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t.home,
           tabBarIcon: ({ color }) => (
             <Ionicons name="home-outline" size={24} color={color} />
           ),
@@ -30,7 +39,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="insights"
         options={{
-          title: "Insights",
+          title: t.insights,
           tabBarIcon: ({ color }) => (
             <Ionicons name="analytics-outline" size={24} color={color} />
           ),
@@ -39,17 +48,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="tips"
         options={{
-          title: "Tips",
+          title: t.tips,
           tabBarIcon: ({ color }) => (
             <Ionicons name="list-outline" size={24} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t.profile,
           tabBarIcon: ({ color }) => (
             <Ionicons name="person-outline" size={24} color={color} />
           ),

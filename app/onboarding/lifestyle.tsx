@@ -8,10 +8,33 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { OptionSelect } from '../../components/OptionSelect';
 import { theme } from '../../constants/theme';
+import { useTranslated } from '../../context/LanguageContext';
 
 export default function LifestyleScreen() {
   const router = useRouter();
   const [activity, setActivity] = useState('moderate');
+
+  // Logic: All UI strings are wrapped here for automatic translation
+  const t = useTranslated({
+    appTitle: 'CogniLife',
+    appSubtitle: 'Your AI Health Intelligence',
+    cardTitle: 'Lifestyle Habits',
+    cardSubtitle: 'Tell us about your daily routine',
+    sleepLabel: 'Average Sleep Hours',
+    sleepValue: 'hours',
+    activityLabel: 'Activity Level',
+    low: 'Low - Mostly sedentary',
+    moderate: 'Moderate - Some activity',
+    high: 'High - Very active',
+    continue: 'Continue >',
+    back: 'Back',
+  });
+
+  const activityOptions = [
+    { label: t.low, value: 'low' },
+    { label: t.moderate, value: 'moderate' },
+    { label: t.high, value: 'high' }
+  ];
 
   return (
     <GradientBackground>
@@ -21,8 +44,8 @@ export default function LifestyleScreen() {
             <View style={styles.logoContainer}>
               <Ionicons name="pulse" size={32} color={theme.colors.primary} />
             </View>
-            <Text style={styles.title}>CogniLife</Text>
-            <Text style={styles.subtitle}>Your AI Health Intelligence</Text>
+            <Text style={styles.title}>{t.appTitle}</Text>
+            <Text style={styles.subtitle}>{t.appSubtitle}</Text>
             
             <View style={styles.dotsContainer}>
               <View style={styles.dot} />
@@ -32,42 +55,37 @@ export default function LifestyleScreen() {
           </View>
 
           <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Lifestyle Habits</Text>
-            <Text style={styles.cardSubtitle}>Tell us about your daily routine</Text>
+            <Text style={styles.cardTitle}>{t.cardTitle}</Text>
+            <Text style={styles.cardSubtitle}>{t.cardSubtitle}</Text>
 
             <View style={styles.sleepSection}>
               <Text style={styles.label}>
-                <Ionicons name="moon-outline" size={16} /> Average Sleep Hours
+                <Ionicons name="moon-outline" size={16} /> {t.sleepLabel}
               </Text>
-              {/* Mock Slider for now */}
               <View style={styles.mockSliderContainer}>
                 <View style={styles.mockSliderTrack}>
                   <View style={styles.mockSliderFill} />
                 </View>
                 <View style={styles.mockSliderThumb} />
               </View>
-              <Text style={styles.sleepText}>7 hours</Text>
+              <Text style={styles.sleepText}>7 {t.sleepValue}</Text>
             </View>
 
-            <Text style={styles.label}>Activity Level</Text>
+            <Text style={styles.label}>{t.activityLabel}</Text>
             <OptionSelect
-              options={[
-                { label: 'Low - Mostly sedentary', value: 'low' },
-                { label: 'Moderate - Some activity', value: 'moderate' },
-                { label: 'High - Very active', value: 'high' }
-              ]}
+              options={activityOptions}
               value={activity}
               onChange={setActivity}
             />
 
             <Button 
-              title="Continue >" 
+              title={t.continue} 
               onPress={() => router.push('/onboarding/connect')} 
               style={styles.button}
             />
             
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Text style={styles.backText}>Back</Text>
+              <Text style={styles.backText}>{t.back}</Text>
             </TouchableOpacity>
           </Card>
         </View>
