@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Linking, Platform } from 'react-native';
-import ScreenTimeModule from 'screen-time-module';
+import { requireNativeModule } from 'expo-modules-core';
+import { Linking, Platform } from 'react-native';
+
+// Direct connection to the native Android module
+// This bypasses the need for the JS "build/index.js" file
+const ScreenTimeModule = requireNativeModule('ScreenTimeModule');
 
 export type ConfirmDialog = (config: {
   title: string;
@@ -19,13 +23,7 @@ export interface ScreenTimeData {
 /**
  * Screen Time Service
  * 
- * This service provides screen time data collection for Android.
- * Currently uses a simulated approach with user self-reporting as fallback.
- * 
- * To implement the full native module later:
- * 1. Create an Expo native module using expo-modules-core
- * 2. Bridge Android's UsageStatsManager API
- * 3. Replace the mock methods below with native calls
+ * Provides real-time usage data directly from Android's UsageStatsManager.
  */
 class ScreenTimeService {
   private permissionGranted: boolean = false;
@@ -36,72 +34,38 @@ class ScreenTimeService {
   async checkPermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
 
-    // Prefer a real check against the native module instead of relying solely on stored flag
     try {
-      // If native module is available, try fetching usage stats; if it returns data, permission is effectively granted
-      if (ScreenTimeModule && typeof ScreenTimeModule.getUsageStats === 'function') {
-        try {
-          const data = await ScreenTimeModule.getUsageStats();
-          const has = (data && ((data.screenTime || 0) > 0 || (data.lateNightUsage || 0) > 0));
-          this.permissionGranted = !!has;
-          await AsyncStorage.setItem(SCREEN_TIME_PERMISSION_KEY, this.permissionGranted ? 'true' : 'false');
-          return this.permissionGranted;
-        } catch (e) {
-          // native call failed, fall back to stored flag
-          console.log('screenTimeService: native permission check failed', e);
-        }
-      }
-
+      // Direct native call. If this succeeds, we have access.
+      await ScreenTimeModule.getUsageStats();
+      this.permissionGranted = true;
+      await AsyncStorage.setItem(SCREEN_TIME_PERMISSION_KEY, 'true');
+      return true;
+    } catch (e) {
       const stored = await AsyncStorage.getItem(SCREEN_TIME_PERMISSION_KEY);
       this.permissionGranted = stored === 'true';
       return this.permissionGranted;
-    } catch (err) {
-      console.log('screenTimeService: checkPermission error', err);
-      return false;
     }
   }
 
   /**
    * Request screen time permission
-   * On Android, this opens Usage Access settings where user must manually enable
    */
   async requestPermission(showConfirm?: ConfirmDialog): Promise<boolean> {
-    if (Platform.OS !== 'android') {
-      if (showConfirm) {
-        await showConfirm({
-          title: 'Not Supported',
-          message: 'Screen time tracking is only available on Android.',
-        });
-      } else {
-        Alert.alert('Not Supported', 'Screen time tracking is only available on Android.');
-      }
-      return false;
-    }
+    if (Platform.OS !== 'android') return false;
 
     const confirmed = showConfirm
       ? await showConfirm({
           title: '📱 Screen Time Access',
-          message: 'CogniLife needs access to your usage data to track screen time and late-night phone usage. This helps us provide better health insights.\n\nYou\'ll be taken to Settings where you need to find and enable CogniLife.',
+          message: 'CogniLife needs access to your usage data to track screen time and late-night phone usage. This helps us provide better health insights.',
           confirmText: 'Open Settings',
           cancelText: 'Not Now',
         })
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            '📱 Screen Time Access',
-            'CogniLife needs access to your usage data to track screen time and late-night phone usage. This helps us provide better health insights.\n\nYou\'ll be taken to Settings where you need to find and enable CogniLife.',
-            [
-              { text: 'Not Now', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Open Settings', onPress: () => resolve(true) },
-            ]
-          );
-        });
+      : true;
 
     if (!confirmed) return false;
 
     try {
       await Linking.openSettings();
-      await AsyncStorage.setItem(SCREEN_TIME_PERMISSION_KEY, 'true');
-      this.permissionGranted = true;
       return true;
     } catch {
       return false;
@@ -110,29 +74,36 @@ class ScreenTimeService {
 
   /**
    * Get today's screen time data
-   * 
-   * NOTE: This is currently a simulation. In production, replace with
-   * native module calls to UsageStatsManager.queryUsageStats()
    */
-async getScreenTimeData(): Promise<ScreenTimeData> {
-  const hasPermission = await this.checkPermission();
+  async getScreenTimeData(): Promise<ScreenTimeData> {
+    if (Platform.OS !== 'android') return { screenTime: 0, lateNightUsage: 0 };
 
-  if (!hasPermission) {
-    return { screenTime: 0, lateNightUsage: 0 };
+    try {
+      const data = await ScreenTimeModule.getUsageStats();
+      
+      // Data arrives in MINUTES from the native module.
+      // We convert to decimal hours for internal ML model compatibility.
+      return {
+        screenTime: Number((data.screenTime / 60).toFixed(2)),
+        lateNightUsage: Number((data.lateNightUsage / 60).toFixed(2)),
+      };
+    } catch (e) {
+      console.error('ScreenTimeModule Error:', e);
+      return { screenTime: 0, lateNightUsage: 0 };
+    }
   }
 
-  try {
-    const data = await ScreenTimeModule.getUsageStats();
-
-    return {
-      screenTime: Number(data.screenTime.toFixed(2)),
-      lateNightUsage: Number(data.lateNightUsage.toFixed(2)),
-    };
-  } catch (e) {
-    console.log('Native error:', e);
-    return { screenTime: 0, lateNightUsage: 0 };
+  /**
+   * Formats decimal hours into a human-readable string (e.g., 6.48 -> "6h 29m")
+   */
+  formatDuration(hours: number): string {
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    
+    if (h === 0) return `${m}m`;
+    return `${h}h ${m}m`;
   }
-}
 
   /**
    * Check if the service is available on this platform
