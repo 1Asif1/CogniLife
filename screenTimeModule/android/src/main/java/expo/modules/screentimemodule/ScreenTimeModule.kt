@@ -34,12 +34,10 @@ class ScreenTimeModule : Module() {
 
       val startOfDay = calendar.timeInMillis
 
-      // Debug toggle: set to true temporarily to log per-package durations
-      val DEBUG_LOG_PACKAGES = true
-        // Force using event-based aggregation (more precise for sub-windows on many OEMs)
-        val ALWAYS_USE_EVENTS = true
+      // Use system-aggregated stats for better accuracy/matching with Digital Wellbeing
+      val ALWAYS_USE_EVENTS = false
 
-      // Resolve the current home/launcher package so we can ignore it (Digital Wellbeing excludes home activity)
+      // Resolve home/launcher
       val homeIntent = Intent(Intent.ACTION_MAIN)
       homeIntent.addCategory(Intent.CATEGORY_HOME)
       val resolveHome = context.packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
@@ -48,53 +46,33 @@ class ScreenTimeModule : Module() {
       // Helper: decide whether to include a package in totals
       fun shouldIncludePackage(pkg: String): Boolean {
         if (pkg.isEmpty()) return false
-        if (pkg == homePackage) return false
         if (pkg == "android") return false
-        if (pkg == "host.exp.exponent") return false // exclude Expo dev client
-        try {
-          val ai = context.packageManager.getApplicationInfo(pkg, 0)
-          val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0 || (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-          if (isSystem) return false
-        } catch (_: Exception) {
-          // If we can't find info, be conservative and include it
-        }
+        if (pkg == homePackage) return false
+        
+        // Include everything else to match Digital Wellbeing's inclusiveness
         return true
       }
 
-      // Helper to aggregate total foreground time between two timestamps by processing UsageEvents
-      // Returns Pair(totalMillis, perPackageMillis)
+      // Helper to aggregate total foreground time
       fun aggregateForeground(start: Long, end: Long): Pair<Long, Map<String, Long>> {
-        // Prefer system aggregation on Android Q+ which is more likely to match
-        // Digital Wellbeing. However some OEMs return daily totals for sub-windows.
-        // Allow forcing event-based aggregation when needed.
-        if (!ALWAYS_USE_EVENTS && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (!ALWAYS_USE_EVENTS) {
           try {
-              val agg = usageStatsManager.queryAndAggregateUsageStats(start, end)
-              var total: Long = 0
-              val map = mutableMapOf<String, Long>()
-              agg.forEach { (pkg, st) ->
-                try {
-                  val t = st.totalTimeInForeground
-                  if (!shouldIncludePackage(pkg)) {
-                    if (DEBUG_LOG_PACKAGES) Log.d("ScreenTimeModule", "skipping package $pkg from QAgg (excluded)")
-                  } else {
-                    map[pkg] = t
-                    total += t
-                  }
-                } catch (_: Exception) {
+            val agg = usageStatsManager.queryAndAggregateUsageStats(start, end)
+            var total: Long = 0
+            val filteredMap = mutableMapOf<String, Long>()
+            
+            agg.forEach { (pkg, st) ->
+              if (shouldIncludePackage(pkg)) {
+                val time = st.totalTimeInForeground
+                if (time > 0) {
+                  filteredMap[pkg] = time
+                  total += time
                 }
               }
-              // Validate QAgg result: if it reports more time than the requested window
-              // (or zero), it's likely unreliable for this sub-window on some OEMs.
-              val windowLen = end - start
-              if (total <= 0 || total > windowLen) {
-                if (DEBUG_LOG_PACKAGES) Log.w("ScreenTimeModule", "queryAndAggregate returned suspicious total=$total for windowLen=$windowLen; falling back to events")
-              } else {
-                if (DEBUG_LOG_PACKAGES) Log.i("ScreenTimeModule", "aggregateForeground(QAgg) ${Date(start)} -> ${Date(end)} total=${total} breakdown=${map}")
-                return Pair(total, map)
-              }
-          } catch (_: Exception) {
-            // fall through to event-based aggregation
+            }
+            if (total > 0) return Pair(total, filteredMap)
+          } catch (e: Exception) {
+            // fall through to events if this fails
           }
         }
 
@@ -113,138 +91,74 @@ class ScreenTimeModule : Module() {
             UsageEvents.Event.MOVE_TO_BACKGROUND -> {
               val fg = lastForeground.remove(pkg) ?: start
               val delta = event.timeStamp - fg
-              totals[pkg] = (totals[pkg] ?: 0) + delta
+              if (delta > 0) totals[pkg] = (totals[pkg] ?: 0) + delta
             }
           }
         }
 
-        // For any package still in foreground, count until 'end'
         lastForeground.forEach { (pkg, ts) ->
           val delta = end - ts
           if (delta > 0) totals[pkg] = (totals[pkg] ?: 0) + delta
         }
 
-        // Filter out system/dev packages from the totals map
         val filtered = mutableMapOf<String, Long>()
-        totals.forEach { (pkg, value) ->
-          if (shouldIncludePackage(pkg)) filtered[pkg] = value
-          else if (DEBUG_LOG_PACKAGES) Log.d("ScreenTimeModule", "skipping package $pkg from events (excluded)")
-        }
-
         var total: Long = 0
-        filtered.values.forEach { total += it }
-        if (DEBUG_LOG_PACKAGES) Log.i("ScreenTimeModule", "aggregateForeground(events) ${Date(start)} -> ${Date(end)} total=${total} breakdown=${filtered}")
+        totals.forEach { (pkg, value) ->
+          if (shouldIncludePackage(pkg)) {
+            filtered[pkg] = value
+            total += value
+          }
+        }
+        
         return Pair(total, filtered)
       }
 
       // Total screen time since midnight
-      val (totalMillis, totalBreakdown) = try {
+      val (totalMillis, _) = try {
         aggregateForeground(startOfDay, now)
       } catch (e: Exception) {
-        // fallback to queryUsageStats if events fail
-        try {
-          var total: Long = 0
-          val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startOfDay, now)
-          val map = mutableMapOf<String, Long>()
-          stats?.forEach { st ->
-            map[st.packageName] = st.totalTimeInForeground
-            total += st.totalTimeInForeground
-          }
-          if (DEBUG_LOG_PACKAGES) Log.i("ScreenTimeModule", "fallback queryUsageStats ${Date(startOfDay)} -> ${Date(now)} total=${total} breakdown=${map}")
-          Pair(total, map)
-        } catch (ex: Exception) {
-          Pair(0L, emptyMap())
-        }
+        Pair(0L, emptyMap())
       }
 
-      var screenTimeHours = totalMillis / (1000 * 60 * 60.0)
-
       // Late night aggregation: 23:00 - 04:00 window
-      // We'll consider both yesterday's 23:00->today 04:00 and today's 23:00->tomorrow 04:00,
-      // but only count the overlap with the period [startOfDay, now] so we don't double-count.
       fun overlap(aStart: Long, aEnd: Long, bStart: Long, bEnd: Long): Long {
         val s = Math.max(aStart, bStart)
         val e = Math.min(aEnd, bEnd)
         return if (e > s) (e - s) else 0L
       }
 
-      // Window length = 5 hours (23:00 -> 04:00)
       val fiveHours = 5 * 60 * 60 * 1000L
-
-      // Build today's 23:00
       calendar.set(Calendar.HOUR_OF_DAY, 23)
       calendar.set(Calendar.MINUTE, 0)
       calendar.set(Calendar.SECOND, 0)
       calendar.set(Calendar.MILLISECOND, 0)
       val todayLateStart = calendar.timeInMillis
-      val todayLateEnd = todayLateStart + fiveHours
-
-      // Yesterday's late window
       val yesterdayLateStart = todayLateStart - 24 * 60 * 60 * 1000L
-      val yesterdayLateEnd = yesterdayLateStart + fiveHours
 
       var lateMillisTotal: Long = 0
-
-      // Consider overlap of yesterday's late window with [startOfDay, now]
-      val overlapYesterday = overlap(yesterdayLateStart, yesterdayLateEnd, startOfDay, now)
-      if (overlapYesterday > 0) {
-        try {
-          val s = Math.max(yesterdayLateStart, startOfDay)
-          val e = Math.min(yesterdayLateEnd, now)
-          val (millis, breakdown) = aggregateForeground(s, e)
-          lateMillisTotal += millis
-          if (DEBUG_LOG_PACKAGES) Log.i("ScreenTimeModule", "yesterdayLate breakdown=${breakdown}")
-        } catch (e: Exception) {
-          try {
-            var total: Long = 0
-            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, Math.max(yesterdayLateStart, startOfDay), Math.min(yesterdayLateEnd, now))
-            stats?.forEach { total += it.totalTimeInForeground }
-            lateMillisTotal += total
-          } catch (_: Exception) {}
-        }
+      
+      // Yesterday late night overlap
+      val s1 = Math.max(yesterdayLateStart, startOfDay)
+      val e1 = Math.min(yesterdayLateStart + fiveHours, now)
+      if (e1 > s1) {
+        lateMillisTotal += aggregateForeground(s1, e1).first
       }
 
-      // Consider overlap of today's late window with [startOfDay, now]
-      val overlapToday = overlap(todayLateStart, todayLateEnd, startOfDay, now)
-      if (overlapToday > 0) {
-        try {
-          val s = Math.max(todayLateStart, startOfDay)
-          val e = Math.min(todayLateEnd, now)
-          val (millis, breakdown) = aggregateForeground(s, e)
-          lateMillisTotal += millis
-          if (DEBUG_LOG_PACKAGES) Log.i("ScreenTimeModule", "todayLate breakdown=${breakdown}")
-        } catch (e: Exception) {
-          try {
-            var total: Long = 0
-            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, Math.max(todayLateStart, startOfDay), Math.min(todayLateEnd, now))
-            stats?.forEach { total += it.totalTimeInForeground }
-            lateMillisTotal += total
-          } catch (_: Exception) {}
-        }
+      // Today late night overlap
+      val s2 = Math.max(todayLateStart, startOfDay)
+      val e2 = Math.min(todayLateStart + fiveHours, now)
+      if (e2 > s2) {
+        lateMillisTotal += aggregateForeground(s2, e2).first
       }
 
-      var lateNightHours = lateMillisTotal / (1000 * 60 * 60.0)
+      // Return results in MINUTES for better precision
+      val screenTimeMinutes = (totalMillis / (1000 * 60)).toDouble()
+      val lateNightMinutes = (lateMillisTotal / (1000 * 60)).toDouble()
 
-      // Apply rounding rule: if fractional part goes beyond 0.59h, count it as next full hour
-      fun applyRounding(hours: Double): Double {
-        val floor = Math.floor(hours)
-        val frac = hours - floor
-        return if (frac > 0.59) Math.ceil(hours) else String.format("%.2f", hours).toDouble()
-      }
-
-      screenTimeHours = applyRounding(screenTimeHours)
-      lateNightHours = applyRounding(lateNightHours)
-
-      val result = mutableMapOf<String, Any>(
-        "screenTime" to screenTimeHours,
-        "lateNightUsage" to lateNightHours
+      return@AsyncFunction mapOf(
+        "screenTime" to screenTimeMinutes,
+        "lateNightUsage" to lateNightMinutes
       )
-      if (DEBUG_LOG_PACKAGES) {
-        // Convert breakdown to hours map for easier JS inspection
-        val breakdownHours = totalBreakdown.mapValues { (k, v) -> v / (1000.0 * 60 * 60) }
-        result["breakdown"] = breakdownHours
-      }
-      return@AsyncFunction result
     }
   }
 }

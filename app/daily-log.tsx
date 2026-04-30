@@ -88,20 +88,12 @@ export default function DailyLogScreen() {
     loadData();
   }, []);
 
-  // Refresh when screen gains focus (debounced to 1s)
-  const lastFocusRef = useRef<number>(0);
+  // Refresh when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      console.log('[DailyLog] screen focused');
-      const now = Date.now();
-      if (now - lastFocusRef.current < 1000) return;
-      lastFocusRef.current = now;
-      // call loadData to re-check permissions and fetch latest auto data
+      console.log('[DailyLog] screen focused - fetching fresh data');
       loadData();
-
-      return () => {
-        // noop cleanup
-      };
+      return () => {};
     }, [user])
   );
 
@@ -352,13 +344,15 @@ export default function DailyLogScreen() {
             {screenTimePermission && (
               <View style={styles.dataMetrics}>
                 <View style={styles.metric}>
-                  <Text style={styles.metricValue}>{autoData.screenTime.toFixed(1)}h</Text>
+                  <Text style={styles.metricValue}>
+                    {screenTimeService.formatDuration(autoData.screenTime)}
+                  </Text>
                   <Text style={styles.metricLabel}>Today's Screen Time</Text>
                 </View>
                 <View style={styles.metricDivider} />
                 <View style={styles.metric}>
                   <Text style={[styles.metricValue, { color: autoData.lateNightUsage > 0 ? theme.colors.danger : theme.colors.success }]}>
-                    {autoData.lateNightUsage.toFixed(1)}h
+                    {screenTimeService.formatDuration(autoData.lateNightUsage)}
                   </Text>
                   <Text style={styles.metricLabel}>Late Night</Text>
                 </View>
