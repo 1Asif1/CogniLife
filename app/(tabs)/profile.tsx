@@ -20,6 +20,7 @@ import { Input } from '../../components/Input';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage, useTranslated } from '../../context/LanguageContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
 import { getStreakData } from '../../services/dailyLogService';
 
@@ -69,7 +70,56 @@ export default function ProfileScreen() {
   const [editError, setEditError] = useState('');
 
   const { signOut, userProfile, updateUserProfile } = useAuth();
+  const { language } = useLanguage();
   const router = useRouter();
+
+  const t = useTranslated({
+    profileTitle: 'Profile',
+    profileSubtitle: 'Manage your account & settings',
+    memberSince: 'Member since',
+    edit: 'Edit',
+    streakTitle: 'Activity Streak',
+    currentStreak: 'Current Streak',
+    bestStreak: 'Best Streak',
+    totalLogs: 'Total Logs',
+    streakKeepUp: 'Keep it up!',
+    deviceTitle: 'Connected Devices',
+    noDevice: 'No Device Connected',
+    addDevice: '+ Add New Device',
+    disconnect: 'Disconnect',
+    langTitle: 'Language',
+    langHint: 'Choose the language for the app interface',
+    account: 'Account',
+    notifications: 'Notifications',
+    privacy: 'Privacy & Security',
+    permissions: 'App Permissions',
+    support: 'Support',
+    helpCenter: 'Help Center',
+    contactDoc: 'Contact Doctors',
+    logout: 'Log Out',
+    saveChanges: 'Save Changes',
+    saving: 'Saving...',
+    fullName: 'Full Name',
+    heightLabel: 'Height',
+    weightLabel: 'Weight',
+    // ── NEW translation keys ──
+    deviceConnected: 'Connected',
+    deviceLastSync: 'Last sync: Just now',
+    deviceNoConnectHint: "Tap 'Add New Device' to connect",
+    namePlaceholder: 'Enter your name',
+    heightPlaceholder: 'e.g. 175',
+    weightPlaceholder: 'e.g. 70',
+    nameRequired: 'Name is required',
+    modalDisconnectMsg: 'Are you sure you want to disconnect',
+    modalDeviceFoundTitle: 'Device Found',
+    modalDeviceFoundMsg: 'device(s). Connecting to',
+    modalFound: 'Found',
+    modalNoDevicesTitle: 'No Devices',
+    modalNoDevicesMsg: 'No compatible health devices found nearby. Make sure Bluetooth is enabled and your device is in pairing mode.',
+    modalScanErrorTitle: 'Error',
+    modalScanErrorMsg: 'Failed to scan for devices. Please check Bluetooth permissions.',
+    appVersion: 'CogniLife v1.0.0',
+  });
 
   const [streakData, setStreakData] = useState({ currentStreak: 0, bestStreak: 0, totalLogs: 0 });
 
@@ -98,7 +148,7 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      setEditError('Name is required');
+      setEditError(t.nameRequired); // FIXED: was hardcoded 'Name is required'
       return;
     }
     setEditLoading(true);
@@ -121,8 +171,8 @@ export default function ProfileScreen() {
   const handleDisconnect = async () => {
     const deviceName = device || 'Apple Watch';
     setModalConfig({
-      title: 'Disconnect Device',
-      message: `Are you sure you want to disconnect ${deviceName}?`,
+      title: t.disconnect,
+      message: `${t.modalDisconnectMsg} ${deviceName}?`, // FIXED: was hardcoded template string
       onConfirm: async () => {
         setModalVisible(false);
         setDevice(null);
@@ -148,8 +198,8 @@ export default function ProfileScreen() {
         setIsScanning(false);
         if (foundDevices.length > 0) {
           setModalConfig({
-            title: 'Device Found',
-            message: `Found ${foundDevices.length} device(s). Connecting to ${foundDevices[0].name}?`,
+            title: t.modalDeviceFoundTitle, // FIXED: was hardcoded 'Device Found'
+            message: `${t.modalFound} ${foundDevices.length} ${t.modalDeviceFoundMsg} ${foundDevices[0].name}?`, // FIXED: was hardcoded template string
             onConfirm: async () => {
               setModalVisible(false);
               const connected = await bluetoothDeviceService.connectToDevice(foundDevices[0].id);
@@ -166,8 +216,8 @@ export default function ProfileScreen() {
         } else {
           setMessage('No devices found');
           setModalConfig({
-            title: 'No Devices',
-            message: 'No compatible health devices found nearby. Make sure Bluetooth is enabled and your device is in pairing mode.',
+            title: t.modalNoDevicesTitle, // FIXED: was hardcoded 'No Devices'
+            message: t.modalNoDevicesMsg, // FIXED: was hardcoded long string
             showCancel: false,
           });
           setModalVisible(true);
@@ -177,8 +227,8 @@ export default function ProfileScreen() {
       setIsScanning(false);
       setMessage('Scan failed');
       setModalConfig({
-        title: 'Error',
-        message: 'Failed to scan for devices. Please check Bluetooth permissions.',
+        title: t.modalScanErrorTitle, // FIXED: was hardcoded 'Error'
+        message: t.modalScanErrorMsg, // FIXED: was hardcoded long string
         showCancel: false,
       });
       setModalVisible(true);
@@ -186,12 +236,15 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} bounces={false}>
-      {/* ── Header ── */}
+    <ScrollView
+      style={styles.container}
+      bounces={false}
+      key={language}
+    >
       <View style={styles.topSection}>
         <GradientBackground style={styles.headerGradient}>
-          <Text style={styles.title}>Profile</Text>
-          <Text style={styles.subtitle}>Manage your account & settings</Text>
+          <Text style={styles.title}>{t.profileTitle}</Text>
+          <Text style={styles.subtitle}>{t.profileSubtitle}</Text>
         </GradientBackground>
 
         <View style={styles.profileContainer}>
@@ -203,14 +256,14 @@ export default function ProfileScreen() {
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{userProfile?.name || 'User'}</Text>
                 <Text style={styles.profileMember}>
-                  Member since{' '}
+                  {t.memberSince}{' '}
                   {userProfile?.created_at
                     ? new Date(userProfile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
                     : '----'}
                 </Text>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
-                <Text style={styles.editBtnText}>Edit</Text>
+                <Text style={styles.editBtnText}>{t.edit}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.divider} />
@@ -221,11 +274,10 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* ── Activity Streak ── */}
         <Card style={styles.sectionCard}>
           <View style={styles.sectionHeaderLine}>
             <Ionicons name="flame" size={20} color="#EA580C" style={{ marginRight: 8 }} />
-            <Text style={styles.sectionTitle}>Activity Streak</Text>
+            <Text style={styles.sectionTitle}>{t.streakTitle}</Text>
           </View>
           <View style={styles.streakStatsRow}>
             <View style={styles.streakBox}>
@@ -233,7 +285,7 @@ export default function ProfileScreen() {
                 <Ionicons name="flame" size={24} color="#EA580C" />
               </View>
               <Text style={styles.streakValue}>{streakData.currentStreak}</Text>
-              <Text style={styles.streakLabel}>Current{'\n'}Streak</Text>
+              <Text style={styles.streakLabel}>{t.currentStreak}</Text>
             </View>
             <View style={styles.streakDivider} />
             <View style={styles.streakBox}>
@@ -241,7 +293,7 @@ export default function ProfileScreen() {
                 <Ionicons name="trophy" size={24} color="#3B82F6" />
               </View>
               <Text style={styles.streakValue}>{streakData.bestStreak}</Text>
-              <Text style={styles.streakLabel}>Best{'\n'}Streak</Text>
+              <Text style={styles.streakLabel}>{t.bestStreak}</Text>
             </View>
             <View style={styles.streakDivider} />
             <View style={styles.streakBox}>
@@ -249,19 +301,18 @@ export default function ProfileScreen() {
                 <Ionicons name="calendar" size={24} color="#10B981" />
               </View>
               <Text style={styles.streakValue}>{streakData.totalLogs}</Text>
-              <Text style={styles.streakLabel}>Total{'\n'}Logs</Text>
+              <Text style={styles.streakLabel}>{t.totalLogs}</Text>
             </View>
           </View>
           <View style={styles.streakBanner}>
             <Text style={styles.streakBannerText}>
-              🔥 {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''} in a row! Keep it up!
+              🔥 {streakData.currentStreak} day{streakData.currentStreak !== 1 ? 's' : ''} {t.streakKeepUp}
             </Text>
           </View>
         </Card>
 
-        {/* ── Connected Devices ── */}
         <Card style={styles.sectionCard}>
-          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Connected Devices</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>{t.deviceTitle}</Text>
           {device ? (
             <View style={styles.deviceRow}>
               <View style={styles.deviceIcon}>
@@ -269,11 +320,11 @@ export default function ProfileScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.deviceTitle}>{device}</Text>
-                <Text style={styles.deviceSub}>Connected</Text>
-                <Text style={styles.deviceSync}>Last sync: Just now</Text>
+                <Text style={styles.deviceSub}>{t.deviceConnected}</Text>{/* FIXED: was hardcoded 'Connected' */}
+                <Text style={styles.deviceSync}>{t.deviceLastSync}</Text>{/* FIXED: was hardcoded 'Last sync: Just now' */}
               </View>
               <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect}>
-                <Text style={styles.disconnectBtnText}>Disconnect</Text>
+                <Text style={styles.disconnectBtnText}>{t.disconnect}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -282,59 +333,48 @@ export default function ProfileScreen() {
                 <Ionicons name="watch-outline" size={24} color={theme.colors.secondary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.deviceTitle}>No Device Connected</Text>
-                <Text style={styles.deviceSub}>Tap 'Add New Device' to connect</Text>
+                <Text style={styles.deviceTitle}>{t.noDevice}</Text>
+                <Text style={styles.deviceSub}>{t.deviceNoConnectHint}</Text>{/* FIXED: was hardcoded string */}
               </View>
             </View>
           )}
           <TouchableOpacity style={styles.addDeviceBtn} onPress={handleAddDevice}>
-            <Text style={styles.addDeviceText}>+ Add New Device</Text>
+            <Text style={styles.addDeviceText}>{t.addDevice}</Text>
           </TouchableOpacity>
-          {message !== '' && (
-            <Text style={{ marginTop: 10, textAlign: 'center' }}>{message}</Text>
-          )}
         </Card>
 
-        {/* ── Language (standalone card) ── */}
         <Card style={styles.sectionCard}>
           <View style={styles.langCardHeader}>
             <View style={styles.langIconBg}>
               <Ionicons name="language-outline" size={20} color={theme.colors.primary} />
             </View>
-            <Text style={styles.sectionTitle}>Language</Text>
+            <Text style={styles.sectionTitle}>{t.langTitle}</Text>
           </View>
-          <Text style={styles.langHint}>
-            Choose the language for the app interface
-          </Text>
-          {/* LanguageSwitcher renders its own trigger row + bottom-sheet modal */}
+          <Text style={styles.langHint}>{t.langHint}</Text>
           <LanguageSwitcher userId={userProfile?.id} />
         </Card>
 
-        {/* ── Account ── */}
         <Card style={styles.sectionCard}>
-          <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Account</Text>
-          <SettingItem icon="notifications-outline" title="Notifications" subtitle="Manage" onPress={() => router.push('/notifications-settings')} />
-          <SettingItem icon="lock-closed-outline" title="Privacy & Security" onPress={() => router.push('/privacy-security')} />
-          <SettingItem icon="apps-outline" title="App Permissions" subtitle="Review" showBorder={false} onPress={() => router.push('/app-permissions')} />
+          <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>{t.account}</Text>
+          <SettingItem icon="notifications-outline" title={t.notifications} subtitle="Manage" onPress={() => router.push('/notifications-settings')} />
+          <SettingItem icon="lock-closed-outline" title={t.privacy} onPress={() => router.push('/privacy-security')} />
+          <SettingItem icon="apps-outline" title={t.permissions} subtitle="Review" showBorder={false} onPress={() => router.push('/app-permissions')} />
         </Card>
 
-        {/* ── Support ── */}
         <Card style={styles.sectionCard}>
-          <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>Support</Text>
-          <SettingItem icon="help-circle-outline" title="Help Center" onPress={() => router.push('/help-center')} />
-          <SettingItem icon="medkit-outline" title="Contact Doctors" showBorder={false} onPress={() => router.push('/contact-doctors')} />
+          <Text style={[styles.sectionTitle, { marginBottom: 16, marginTop: 8 }]}>{t.support}</Text>
+          <SettingItem icon="help-circle-outline" title={t.helpCenter} onPress={() => router.push('/help-center')} />
+          <SettingItem icon="medkit-outline" title={t.contactDoc} showBorder={false} onPress={() => router.push('/contact-doctors')} />
         </Card>
 
-        {/* ── Logout ── */}
         <TouchableOpacity style={styles.logoutCard} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} style={{ marginRight: 8 }} />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>{t.logout}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>CogniLife v1.0.0</Text>
+        <Text style={styles.version}>{t.appVersion}</Text>{/* FIXED: was hardcoded 'CogniLife v1.0.0' */}
       </View>
 
-      {/* ── Confirmation modal ── */}
       <CustomModal
         visible={modalVisible}
         title={modalConfig?.title || ''}
@@ -358,7 +398,7 @@ export default function ProfileScreen() {
           >
             <View style={styles.editModalContent}>
               <View style={styles.editModalHeader}>
-                <Text style={styles.editModalTitle}>Edit Profile</Text>
+                <Text style={styles.editModalTitle}>{t.edit}</Text>
                 <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.closeBtn}>
                   <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
@@ -373,21 +413,21 @@ export default function ProfileScreen() {
                 ) : null}
 
                 <Input
-                  label="Full Name"
-                  placeholder="Enter your name"
+                  label={t.fullName}
+                  placeholder={t.namePlaceholder} // FIXED: was hardcoded 'Enter your name'
                   value={editName}
                   onChangeText={(text) => { setEditName(text); setEditError(''); }}
                 />
                 <Input
-                  label="Height (cm)"
-                  placeholder="e.g. 175"
+                  label={t.heightLabel}
+                  placeholder={t.heightPlaceholder} // FIXED: was hardcoded 'e.g. 175'
                   keyboardType="numeric"
                   value={editHeight}
                   onChangeText={(text) => { setEditHeight(text); setEditError(''); }}
                 />
                 <Input
-                  label="Weight (kg)"
-                  placeholder="e.g. 70"
+                  label={t.weightLabel}
+                  placeholder={t.weightPlaceholder} // FIXED: was hardcoded 'e.g. 70'
                   keyboardType="numeric"
                   value={editWeight}
                   onChangeText={(text) => { setEditWeight(text); setEditError(''); }}
@@ -396,10 +436,10 @@ export default function ProfileScreen() {
                 {editLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={theme.colors.primary} />
-                    <Text style={styles.loadingText}>Saving...</Text>
+                    <Text style={styles.loadingText}>{t.saving}</Text>
                   </View>
                 ) : (
-                  <Button title="Save Changes" onPress={handleSaveProfile} style={styles.saveBtn} />
+                  <Button title={t.saveChanges} onPress={handleSaveProfile} style={styles.saveBtn} />
                 )}
               </ScrollView>
             </View>
@@ -450,25 +490,18 @@ const styles = StyleSheet.create({
   addDeviceText: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '500' },
   disconnectBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.colors.danger + '15', borderRadius: 8 },
   disconnectBtnText: { color: theme.colors.danger, fontSize: 13, fontWeight: '600' },
-
-  // Language card
   langCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 },
   langIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.primary + '15', justifyContent: 'center', alignItems: 'center' },
   langHint: { fontSize: 13, color: theme.colors.textSecondary, marginBottom: 12 },
-
-  // Settings
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
   settingBorder: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   settingIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FAFAFA', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   settingContent: { flex: 1 },
   settingTitle: { fontSize: 15, fontWeight: '500', color: theme.colors.text },
   settingSubtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4 },
-
   logoutCard: { backgroundColor: theme.colors.danger + '10', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 16, borderRadius: 12, marginBottom: 24 },
   logoutText: { color: theme.colors.danger, fontSize: 16, fontWeight: '600' },
   version: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12 },
-
-  // Edit modal
   editModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   editModalKeyboard: { flex: 1, justifyContent: 'flex-end' },
   editModalContent: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },

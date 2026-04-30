@@ -3,45 +3,109 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { CustomModal } from '../components/CustomModal';
 import { theme } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useTranslated } from '../context/LanguageContext';
 import {
-    AutoCollectedData,
-    collectAutoData,
-    getTodayLog,
-    submitDailyLog,
+  AutoCollectedData,
+  collectAutoData,
+  getTodayLog,
+  submitDailyLog,
 } from '../services/dailyLogService';
 import {
-    hasHealthPermissions,
-    initializeHealthConnect,
-    requestHealthPermissions
+  hasHealthPermissions,
+  initializeHealthConnect,
+  requestHealthPermissions
 } from '../services/healthConnectService';
 import { screenTimeService } from '../services/screenTimeService';
 
 const MEAL_OPTIONS = [1, 2, 3, 4, 5, 6];
 const CALORIE_PRESETS = [1200, 1500, 1800, 2000, 2500, 3000];
-const FOOD_QUALITY_OPTIONS = [
-  { value: 0, label: 'Poor', icon: 'sad-outline' as const, color: '#EF4444' },
-  { value: 1, label: 'Average', icon: 'remove-circle-outline' as const, color: '#F59E0B' },
-  { value: 2, label: 'Good', icon: 'happy-outline' as const, color: '#10B981' },
-];
 
 export default function DailyLogScreen() {
   const router = useRouter();
   const { user } = useAuth();
+
+  const t = useTranslated({
+    // Header
+    headerTitle: 'Daily Log',
+    updatingLog: "Updating today's log",
+    // Sections
+    autoCollected: 'Auto-Collected Data',
+    manualEntry: 'Manual Entry',
+    // Screen time card
+    screenTimeTitle: 'Screen Time',
+    permissionGranted: 'Permission granted',
+    permissionRequired: 'Permission required',
+    grant: 'Grant',
+    todayScreenTime: "Today's Screen Time",
+    lateNight: 'Late Night',
+    // Wearable card
+    wearableTitle: 'Wearable Data',
+    healthConnectLinked: 'Health Connect linked',
+    connectDevice: 'Connect your device',
+    connect: 'Connect',
+    sleep: 'Sleep',
+    steps: 'Steps',
+    activity: 'Activity',
+    sitting: 'Sitting',
+    inactive: 'Inactive',
+    // Activity levels
+    activityHigh: 'High',
+    activityModerate: 'Moderate',
+    activityLow: 'Low',
+    // Meals
+    whichMeal: 'Which Meal of The Day',
+    // Calories
+    addCalories: 'Add Calories',
+    todayTotal: "Today's Total",
+    enterCalories: 'Enter calories',
+    kcal: 'kcal',
+    quickPresets: 'Quick presets:',
+    // Food quality
+    foodQuality: 'Food Quality',
+    foodQualityHint: 'Rate the overall quality of your meals today',
+    poor: 'Poor',
+    average: 'Average',
+    good: 'Good',
+    // Submit
+    allConnected: 'All data sources connected. Ready to save!',
+    someNotConnected: 'Some data sources not connected. You can still save manual entries.',
+    updateLog: 'Update Daily Log',
+    saveLog: 'Save Daily Log',
+    // Modals
+    errorTitle: 'Error',
+    notLoggedIn: 'You must be logged in to save a daily log.',
+    logSavedTitle: 'Log Saved!',
+    logUpdated: "Your daily log has been updated successfully.",
+    logSaved: "Your daily log has been saved successfully.",
+    great: 'Great!',
+    ok: 'OK',
+    cancel: 'Cancel',
+    // Permission dialogs
+    screenTimePermissionTitle: 'Screen Time Permission',
+    screenTimePermissionMessage: 'CogniLife needs access to your screen time data to provide personalized insights. Grant permission?',
+    healthConnectPermissionTitle: 'Health Connect Permission',
+    healthConnectPermissionMessage: 'CogniLife needs access to Health Connect to track your activity, sleep, and health metrics. Connect now?',
+    // Tips/Error states
+    failed: 'Failed',
+    loadingFailed: 'Loading failed',
+    retryLoading: 'Retry loading',
+  });
 
   // Auto-collected data
   const [autoData, setAutoData] = useState<AutoCollectedData>({
@@ -66,6 +130,7 @@ export default function DailyLogScreen() {
   const [loadingAuto, setLoadingAuto] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [existingLog, setExistingLog] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     title: string;
@@ -83,57 +148,56 @@ export default function DailyLogScreen() {
     day: 'numeric',
   });
 
-  // Load existing data and auto-collect
+  // Food quality options using translated labels
+  const FOOD_QUALITY_OPTIONS = [
+    { value: 0, label: t.poor, icon: 'sad-outline' as const, color: '#EF4444' },
+    { value: 1, label: t.average, icon: 'remove-circle-outline' as const, color: '#F59E0B' },
+    { value: 2, label: t.good, icon: 'happy-outline' as const, color: '#10B981' },
+  ];
+
   useEffect(() => {
     loadData();
   }, []);
 
-  // Refresh when screen gains focus
+  const lastFocusRef = useRef<number>(0);
   useFocusEffect(
     useCallback(() => {
-      console.log('[DailyLog] screen focused - fetching fresh data');
+      const now = Date.now();
+      if (now - lastFocusRef.current < 1000) return;
+      lastFocusRef.current = now;
       loadData();
       return () => {};
     }, [user])
-  );
-
+  );      
   const loadData = async () => {
-    console.log('[DailyLog] loadData start');
     setLoadingAuto(true);
-
-    // Check permissions
-    const hasScreenTime = await screenTimeService.checkPermission();
-    console.log('[DailyLog] screenTime permission:', hasScreenTime);
-    setScreenTimePermission(hasScreenTime);
-    
-    const hasHealth = hasHealthPermissions();
-    setHealthConnectPermission(hasHealth);
-
-    // Load existing log if any
-    if (user) {
-      const existing = await getTodayLog(user.id);
-      if (existing) {
-        setExistingLog(true);
-        setMealsPerDay(existing.mealsPerDay);
-        setExistingCalories(existing.calorieIntake || 0);
-        setCalorieIntake('');
-        setFoodQuality(existing.foodQuality ?? 1);
-        setAutoData({
-          screenTime: existing.screenTime,
-          lateNightUsage: existing.lateNightUsage,
-          sleepHours: existing.sleepHours,
-          activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
-          sittingTime: existing.sittingTime,
-          inactivityPeriods: existing.inactivityPeriods,
-          steps: existing.steps,
-        });
-      }
-    }
-
-    // Collect fresh auto data
     try {
+      const hasScreenTime = await screenTimeService.checkPermission();
+      setScreenTimePermission(hasScreenTime);
+      const hasHealth = hasHealthPermissions();
+      setHealthConnectPermission(hasHealth);
+
+      if (user) {
+        const existing = await getTodayLog(user.id);
+        if (existing) {
+          setExistingLog(true);
+          setMealsPerDay(existing.mealsPerDay);
+          setExistingCalories(existing.calorieIntake || 0);
+          setCalorieIntake('');
+          setFoodQuality(existing.foodQuality ?? 1);
+          setAutoData({
+            screenTime: existing.screenTime,
+            lateNightUsage: existing.lateNightUsage,
+            sleepHours: existing.sleepHours,
+            activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
+            sittingTime: existing.sittingTime,
+            inactivityPeriods: existing.inactivityPeriods,
+            steps: existing.steps,
+          });
+        }
+      }
+
       const data = await collectAutoData();
-      console.log('[DailyLog] collectAutoData result:', data);
       setAutoData(prev => ({
         ...prev,
         screenTime: data.screenTime || prev.screenTime,
@@ -146,12 +210,17 @@ export default function DailyLogScreen() {
       }));
     } catch (error) {
       console.error('Auto collection failed:', error);
+    } finally {
+      setLoadingAuto(false);
     }
-
-    setLoadingAuto(false);
   };
 
-  // Helper that shows a CustomModal and returns a promise resolving to the user's choice
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
   const showConfirm = (config: {
     title: string;
     message: string;
@@ -162,23 +231,25 @@ export default function DailyLogScreen() {
       setModalConfig({
         title: config.title,
         message: config.message,
-        confirmText: config.confirmText || 'OK',
+        confirmText: config.confirmText || t.ok,
         showCancel: true,
-        onConfirm: () => {
-          setModalVisible(false);
-          resolve(true);
-        },
-        onCancel: () => {
-          setModalVisible(false);
-          resolve(false);
-        },
+        onConfirm: () => { setModalVisible(false); resolve(true); },
+        onCancel: () => { setModalVisible(false); resolve(false); },
       });
       setModalVisible(true);
     });
   };
 
   const handleRequestScreenTime = async () => {
-    const granted = await screenTimeService.requestPermission(showConfirm);
+    // Use translated strings for the permission dialog
+    const granted = await screenTimeService.requestPermission((config) => 
+      showConfirm({
+        title: t.screenTimePermissionTitle,
+        message: t.screenTimePermissionMessage,
+        confirmText: t.ok,
+        cancelText: t.cancel,
+      })
+    );
     setScreenTimePermission(granted);
     if (granted) {
       const data = await screenTimeService.getScreenTimeData();
@@ -192,7 +263,15 @@ export default function DailyLogScreen() {
 
   const handleRequestHealthConnect = async () => {
     await initializeHealthConnect();
-    const granted = await requestHealthPermissions(showConfirm);
+    // Use translated strings for the permission dialog
+    const granted = await requestHealthPermissions((config) =>
+      showConfirm({
+        title: t.healthConnectPermissionTitle,
+        message: t.healthConnectPermissionMessage,
+        confirmText: t.ok,
+        cancelText: t.cancel,
+      })
+    );
     setHealthConnectPermission(granted);
     if (granted) {
       const data = await collectAutoData();
@@ -207,13 +286,21 @@ export default function DailyLogScreen() {
     }
   };
 
+  const getActivityLabel = (level: string) => {
+    switch (level) {
+      case 'high': return t.activityHigh;
+      case 'moderate': return t.activityModerate;
+      default: return t.activityLow;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       setModalConfig({
-        title: 'Error',
-        message: 'You must be logged in to save a daily log.',
+        title: t.errorTitle,
+        message: t.notLoggedIn,
         onConfirm: () => setModalVisible(false),
-        confirmText: 'OK',
+        confirmText: t.ok,
         showCancel: false,
       });
       setModalVisible(true);
@@ -233,24 +320,19 @@ export default function DailyLogScreen() {
 
     if (result.success) {
       setModalConfig({
-        title: 'Log Saved!',
-        message: existingLog
-          ? 'Your daily log has been updated successfully.'
-          : 'Your daily log has been saved successfully.',
-        onConfirm: () => {
-          setModalVisible(false);
-          router.back();
-        },
-        confirmText: 'Great!',
+        title: t.logSavedTitle,
+        message: existingLog ? t.logUpdated : t.logSaved,
+        onConfirm: () => { setModalVisible(false); router.back(); },
+        confirmText: t.great,
         showCancel: false,
       });
       setModalVisible(true);
     } else {
       setModalConfig({
-        title: 'Error',
-        message: result.error || 'Failed to save daily log.',
+        title: t.errorTitle,
+        message: result.error || t.failed,
         onConfirm: () => setModalVisible(false),
-        confirmText: 'OK',
+        confirmText: t.ok,
         showCancel: false,
       });
       setModalVisible(true);
@@ -275,7 +357,18 @@ export default function DailyLogScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        bounces={false} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
         {/* Gradient Header */}
         <LinearGradient
           colors={[theme.colors.secondary, theme.colors.primary]}
@@ -285,14 +378,11 @@ export default function DailyLogScreen() {
         >
           <SafeAreaView>
             <View style={styles.headerContent}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.backBtn}
-              >
+              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                 <Ionicons name="arrow-back" size={24} color="#FFF" />
               </TouchableOpacity>
               <View style={styles.headerCenter}>
-                <Text style={styles.headerTitle}>Daily Log</Text>
+                <Text style={styles.headerTitle}>{t.headerTitle}</Text>
                 <Text style={styles.headerDate}>{dateString}</Text>
               </View>
               <View style={{ width: 40 }} />
@@ -302,7 +392,7 @@ export default function DailyLogScreen() {
           {existingLog && (
             <View style={styles.existingBadge}>
               <Ionicons name="checkmark-circle" size={14} color="#FFF" />
-              <Text style={styles.existingText}>Updating today's log</Text>
+              <Text style={styles.existingText}>{t.updatingLog}</Text>
             </View>
           )}
         </LinearGradient>
@@ -313,7 +403,7 @@ export default function DailyLogScreen() {
             <View style={styles.sectionIconWrap}>
               <Ionicons name="sync-outline" size={18} color={theme.colors.primary} />
             </View>
-            <Text style={styles.sectionTitle}>Auto-Collected Data</Text>
+            <Text style={styles.sectionTitle}>{t.autoCollected}</Text>
             {loadingAuto && (
               <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: 8 }} />
             )}
@@ -326,14 +416,14 @@ export default function DailyLogScreen() {
                 <Ionicons name="phone-portrait" size={20} color={theme.colors.primary} />
               </View>
               <View style={styles.dataCardInfo}>
-                <Text style={styles.dataCardTitle}>Screen Time</Text>
+                <Text style={styles.dataCardTitle}>{t.screenTimeTitle}</Text>
                 <Text style={styles.dataCardSubtitle}>
-                  {screenTimePermission ? 'Permission granted' : 'Permission required'}
+                  {screenTimePermission ? t.permissionGranted : t.permissionRequired}
                 </Text>
               </View>
               {!screenTimePermission ? (
                 <TouchableOpacity style={styles.grantBtn} onPress={handleRequestScreenTime}>
-                  <Text style={styles.grantBtnText}>Grant</Text>
+                  <Text style={styles.grantBtnText}>{t.grant}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.statusDot}>
@@ -344,17 +434,17 @@ export default function DailyLogScreen() {
             {screenTimePermission && (
               <View style={styles.dataMetrics}>
                 <View style={styles.metric}>
-                  <Text style={styles.metricValue}>
-                    {screenTimeService.formatDuration(autoData.screenTime)}
-                  </Text>
-                  <Text style={styles.metricLabel}>Today's Screen Time</Text>
+
+                  <Text style={styles.metricValue}>{autoData.screenTime.toFixed(1)}h</Text>
+                  <Text style={styles.metricLabel}>{t.todayScreenTime}</Text>
+
                 </View>
                 <View style={styles.metricDivider} />
                 <View style={styles.metric}>
                   <Text style={[styles.metricValue, { color: autoData.lateNightUsage > 0 ? theme.colors.danger : theme.colors.success }]}>
-                    {screenTimeService.formatDuration(autoData.lateNightUsage)}
+                    {autoData.lateNightUsage.toFixed(1)}h
                   </Text>
-                  <Text style={styles.metricLabel}>Late Night</Text>
+                  <Text style={styles.metricLabel}>{t.lateNight}</Text>
                 </View>
               </View>
             )}
@@ -367,14 +457,14 @@ export default function DailyLogScreen() {
                 <Ionicons name="watch" size={20} color={theme.colors.secondary} />
               </View>
               <View style={styles.dataCardInfo}>
-                <Text style={styles.dataCardTitle}>Wearable Data</Text>
+                <Text style={styles.dataCardTitle}>{t.wearableTitle}</Text>
                 <Text style={styles.dataCardSubtitle}>
-                  {healthConnectPermission ? 'Health Connect linked' : 'Connect your device'}
+                  {healthConnectPermission ? t.healthConnectLinked : t.connectDevice}
                 </Text>
               </View>
               {!healthConnectPermission ? (
                 <TouchableOpacity style={[styles.grantBtn, { backgroundColor: '#DBEAFE' }]} onPress={handleRequestHealthConnect}>
-                  <Text style={[styles.grantBtnText, { color: theme.colors.secondary }]}>Connect</Text>
+                  <Text style={[styles.grantBtnText, { color: theme.colors.secondary }]}>{t.connect}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.statusDot}>
@@ -387,31 +477,31 @@ export default function DailyLogScreen() {
                 <View style={styles.wearableItem}>
                   <Ionicons name="moon" size={18} color="#6366F1" />
                   <Text style={styles.wearableValue}>{autoData.sleepHours.toFixed(1)}h</Text>
-                  <Text style={styles.wearableLabel}>Sleep</Text>
+                  <Text style={styles.wearableLabel}>{t.sleep}</Text>
                 </View>
                 <View style={styles.wearableItem}>
                   <Ionicons name="footsteps" size={18} color="#3B82F6" />
                   <Text style={[styles.wearableValue, { color: '#3B82F6' }]}>
                     {autoData.steps.toLocaleString()}
                   </Text>
-                  <Text style={styles.wearableLabel}>Steps</Text>
+                  <Text style={styles.wearableLabel}>{t.steps}</Text>
                 </View>
                 <View style={styles.wearableItem}>
                   <Ionicons name={getActivityIcon(autoData.activityLevel)} size={18} color={getActivityColor(autoData.activityLevel)} />
                   <Text style={[styles.wearableValue, { color: getActivityColor(autoData.activityLevel) }]}>
-                    {autoData.activityLevel.charAt(0).toUpperCase() + autoData.activityLevel.slice(1)}
+                    {getActivityLabel(autoData.activityLevel)}
                   </Text>
-                  <Text style={styles.wearableLabel}>Activity</Text>
+                  <Text style={styles.wearableLabel}>{t.activity}</Text>
                 </View>
                 <View style={styles.wearableItem}>
                   <Ionicons name="time" size={18} color="#F59E0B" />
                   <Text style={styles.wearableValue}>{autoData.sittingTime.toFixed(1)}h</Text>
-                  <Text style={styles.wearableLabel}>Sitting</Text>
+                  <Text style={styles.wearableLabel}>{t.sitting}</Text>
                 </View>
                 <View style={styles.wearableItem}>
                   <Ionicons name="alert-circle" size={18} color="#EF4444" />
                   <Text style={styles.wearableValue}>{autoData.inactivityPeriods}</Text>
-                  <Text style={styles.wearableLabel}>Inactive</Text>
+                  <Text style={styles.wearableLabel}>{t.inactive}</Text>
                 </View>
               </View>
             )}
@@ -422,14 +512,14 @@ export default function DailyLogScreen() {
             <View style={[styles.sectionIconWrap, { backgroundColor: '#FEF3C7' }]}>
               <Ionicons name="create-outline" size={18} color={theme.colors.warning} />
             </View>
-            <Text style={styles.sectionTitle}>Manual Entry</Text>
+            <Text style={styles.sectionTitle}>{t.manualEntry}</Text>
           </View>
 
           {/* Meals Per Day */}
           <Card style={styles.dataCard}>
             <Text style={styles.fieldLabel}>
               <Ionicons name="restaurant-outline" size={16} color={theme.colors.text} />
-              {'  '}Which Meal of The Day
+              {'  '}{t.whichMeal}
             </Text>
             <View style={styles.pillRow}>
               {MEAL_OPTIONS.map(num => (
@@ -451,11 +541,11 @@ export default function DailyLogScreen() {
             <View style={styles.calorieHeaderRow}>
               <Text style={styles.fieldLabel}>
                 <Ionicons name="flame-outline" size={16} color={theme.colors.text} />
-                {'  '}Add Calories
+                {'  '}{t.addCalories}
               </Text>
               {existingCalories > 0 && (
                 <Text style={styles.existingCaloriesText}>
-                  Today's Total : {existingCalories} kcal
+                  {t.todayTotal}: {existingCalories} {t.kcal}
                 </Text>
               )}
             </View>
@@ -464,13 +554,13 @@ export default function DailyLogScreen() {
                 style={styles.calorieInput}
                 value={calorieIntake}
                 onChangeText={setCalorieIntake}
-                placeholder="Enter calories"
+                placeholder={t.enterCalories}
                 placeholderTextColor={theme.colors.textSecondary + '80'}
                 keyboardType="numeric"
               />
-              <Text style={styles.calorieUnit}>kcal</Text>
+              <Text style={styles.calorieUnit}>{t.kcal}</Text>
             </View>
-            <Text style={styles.presetLabel}>Quick presets:</Text>
+            <Text style={styles.presetLabel}>{t.quickPresets}</Text>
             <View style={styles.presetRow}>
               {CALORIE_PRESETS.map(cal => (
                 <TouchableOpacity
@@ -496,11 +586,9 @@ export default function DailyLogScreen() {
           <Card style={styles.dataCard}>
             <Text style={styles.fieldLabel}>
               <Ionicons name="leaf-outline" size={16} color={theme.colors.text} />
-              {'  '}Food Quality
+              {'  '}{t.foodQuality}
             </Text>
-            <Text style={styles.foodQualityHint}>
-              Rate the overall quality of your meals today
-            </Text>
+            <Text style={styles.foodQualityHint}>{t.foodQualityHint}</Text>
             <View style={styles.foodQualityRow}>
               {FOOD_QUALITY_OPTIONS.map(opt => (
                 <TouchableOpacity
@@ -538,8 +626,8 @@ export default function DailyLogScreen() {
               <Ionicons name="information-circle-outline" size={16} color={theme.colors.textSecondary} />
               <Text style={styles.summaryText}>
                 {screenTimePermission && healthConnectPermission
-                  ? 'All data sources connected. Ready to save!'
-                  : 'Some data sources not connected. You can still save manual entries.'}
+                  ? t.allConnected
+                  : t.someNotConnected}
               </Text>
             </View>
 
@@ -547,7 +635,7 @@ export default function DailyLogScreen() {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
             ) : (
               <Button
-                title={existingLog ? 'Update Daily Log' : 'Save Daily Log'}
+                title={existingLog ? t.updateLog : t.saveLog}
                 onPress={handleSubmit}
                 style={styles.submitBtn}
               />
@@ -570,13 +658,8 @@ export default function DailyLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    paddingBottom: 24,
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  header: { paddingBottom: 24 },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -585,290 +668,67 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 44 : 8,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerCenter: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFF',
-    letterSpacing: 0.5,
-  },
-  headerDate: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
+  headerCenter: { alignItems: 'center' },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', letterSpacing: 0.5 },
+  headerDate: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   existingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
-    gap: 6,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, marginTop: 8, gap: 6,
   },
-  existingText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 10,
-  },
+  existingText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
+  content: { padding: 20, paddingBottom: 40 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   sectionIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#EDE9FE',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center',
   },
-  sectionTitle: {
-    ...theme.typography.h2,
-    flex: 1,
-  },
-  dataCard: {
-    marginBottom: 14,
-    padding: 18,
-  },
-  dataCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dataIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  dataCardInfo: {
-    flex: 1,
-  },
-  dataCardTitle: {
-    ...theme.typography.h3,
-    marginBottom: 2,
-  },
-  dataCardSubtitle: {
-    ...theme.typography.small,
-  },
-  grantBtn: {
-    backgroundColor: '#EDE9FE',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  grantBtnText: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-    fontSize: 13,
-  },
+  sectionTitle: { ...theme.typography.h2, flex: 1 },
+  dataCard: { marginBottom: 14, padding: 18 },
+  dataCardHeader: { flexDirection: 'row', alignItems: 'center' },
+  dataIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  dataCardInfo: { flex: 1 },
+  dataCardTitle: { ...theme.typography.h3, marginBottom: 2 },
+  dataCardSubtitle: { ...theme.typography.small },
+  grantBtn: { backgroundColor: '#EDE9FE', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  grantBtnText: { color: theme.colors.primary, fontWeight: '600', fontSize: 13 },
   statusDot: {},
-  dataMetrics: {
-    flexDirection: 'row',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  metric: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  metricValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  metricLabel: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-  },
-  metricDivider: {
-    width: 1,
-    backgroundColor: theme.colors.border,
-    marginHorizontal: 16,
-  },
-  wearableGrid: {
-    flexDirection: 'row',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    justifyContent: 'space-around',
-  },
-  wearableItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  wearableValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  wearableLabel: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    fontSize: 11,
-  },
-  fieldLabel: {
-    ...theme.typography.h3,
-    marginBottom: 14,
-    fontSize: 15,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  pill: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  pillSelected: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary,
-  },
-  pillText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  pillTextSelected: {
-    color: '#FFF',
-  },
-  calorieHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  existingCaloriesText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.success,
-  },
-  calorieInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    backgroundColor: '#FAFAFA',
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-  calorieInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text,
-  },
-  calorieUnit: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  presetLabel: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  presetRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  presetPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  presetPillSelected: {
-    backgroundColor: theme.colors.primary + '15',
-    borderColor: theme.colors.primary,
-  },
-  presetPillText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  presetPillTextSelected: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  submitSection: {
-    marginTop: 24,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    padding: 14,
-    borderRadius: 12,
-    gap: 10,
-  },
-  summaryText: {
-    flex: 1,
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  submitBtn: {
-    marginTop: 20,
-  },
-  foodQualityHint: {
-    ...theme.typography.small,
-    color: theme.colors.textSecondary,
-    marginBottom: 14,
-    fontSize: 12,
-  },
-  foodQualityRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  foodQualityOption: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    backgroundColor: '#FAFAFA',
-    gap: 6,
-  },
-  foodQualityLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
+  dataMetrics: { flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  metric: { flex: 1, alignItems: 'center' },
+  metricValue: { fontSize: 28, fontWeight: '700', color: theme.colors.text, marginBottom: 4 },
+  metricLabel: { ...theme.typography.small, color: theme.colors.textSecondary },
+  metricDivider: { width: 1, backgroundColor: theme.colors.border, marginHorizontal: 16 },
+  wearableGrid: { flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, justifyContent: 'space-around' },
+  wearableItem: { alignItems: 'center', gap: 4 },
+  wearableValue: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
+  wearableLabel: { ...theme.typography.small, color: theme.colors.textSecondary, fontSize: 11 },
+  fieldLabel: { ...theme.typography.h3, marginBottom: 14, fontSize: 15 },
+  pillRow: { flexDirection: 'row', gap: 10 },
+  pill: { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: theme.colors.border, alignItems: 'center', backgroundColor: '#FAFAFA' },
+  pillSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  pillText: { fontSize: 16, fontWeight: '600', color: theme.colors.text },
+  pillTextSelected: { color: '#FFF' },
+  calorieHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  existingCaloriesText: { fontSize: 13, fontWeight: '600', color: theme.colors.success },
+  calorieInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: '#FAFAFA', paddingHorizontal: 16, marginBottom: 14 },
+  calorieInput: { flex: 1, paddingVertical: 14, fontSize: 18, fontWeight: '600', color: theme.colors.text },
+  calorieUnit: { fontSize: 14, color: theme.colors.textSecondary, fontWeight: '500' },
+  presetLabel: { ...theme.typography.small, color: theme.colors.textSecondary, marginBottom: 8, fontWeight: '500' },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  presetPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: 'transparent' },
+  presetPillSelected: { backgroundColor: theme.colors.primary + '15', borderColor: theme.colors.primary },
+  presetPillText: { fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary },
+  presetPillTextSelected: { color: theme.colors.primary, fontWeight: '600' },
+  submitSection: { marginTop: 24 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', padding: 14, borderRadius: 12, gap: 10 },
+  summaryText: { flex: 1, ...theme.typography.small, color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  submitBtn: { marginTop: 20 },
+  foodQualityHint: { ...theme.typography.small, color: theme.colors.textSecondary, marginBottom: 14, fontSize: 12 },
+  foodQualityRow: { flexDirection: 'row', gap: 10 },
+  foodQualityOption: { flex: 1, alignItems: 'center', paddingVertical: 16, borderRadius: 14, borderWidth: 1.5, borderColor: theme.colors.border, backgroundColor: '#FAFAFA', gap: 6 },
+  foodQualityLabel: { fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary },
 });

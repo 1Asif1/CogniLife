@@ -14,6 +14,20 @@ const CACHE_PREFIX = 'translation_cache_';
 // Cache lives for 7 days — translations don't change
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+// ── Junk responses returned by MyMemory on quota/error ────────────────────────
+const MYMEMORY_JUNK_RESPONSES = [
+  'NAME OF TRANSLATORS',
+  'PLEASE ENTER A VALID EMAIL',
+  'MYMEMORY WARNING',
+  'YOU USED ALL AVAILABLE FREE USAGE',
+  'QUERY LENGTH LIMIT',
+];
+
+function isJunkResponse(text: string): boolean {
+  const upper = text.toUpperCase();
+  return MYMEMORY_JUNK_RESPONSES.some((junk) => upper.includes(junk));
+}
+
 export type SupportedLanguage = {
   code: string;
   label: string;
@@ -46,7 +60,6 @@ interface CacheEntry {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function cacheKey(text: string, targetLang: string): string {
-  // Stable key, safe for AsyncStorage
   const hash = `${targetLang}_${text.slice(0, 60).replace(/\s+/g, '_')}`;
   return `${CACHE_PREFIX}${hash}`;
 }
@@ -57,7 +70,11 @@ async function getFromCache(text: string, targetLang: string): Promise<string | 
     if (!raw) return null;
     const entry: CacheEntry = JSON.parse(raw);
     if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-      // Expired — purge silently
+      await AsyncStorage.removeItem(cacheKey(text, targetLang));
+      return null;
+    }
+    // ── Guard: purge any previously cached junk ───────────────────────────
+    if (isJunkResponse(entry.translated)) {
       await AsyncStorage.removeItem(cacheKey(text, targetLang));
       return null;
     }
@@ -101,11 +118,14 @@ export async function translateText(text: string, targetLang: string): Promise<s
     const translated: string = json?.responseData?.translatedText ?? text;
     console.log('[translation]', { text, targetLang, result: translated });
 
-    // MyMemory returns the original on quota/error — detect and fall back
-    if (translated && translated !== text) {
+    // ── Guard: reject junk/quota-error responses from MyMemory ────────────
+    if (translated && translated !== text && !isJunkResponse(translated)) {
       await saveToCache(text, targetLang, translated);
       return translated;
     }
+
+    // Junk or unchanged — fall through to return original
+    console.warn('[translationService] Junk/quota response, falling back to original:', translated);
   } catch (err) {
     console.warn('[translationService] API error:', err);
   }

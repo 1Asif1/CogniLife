@@ -20,7 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
-  fetchUserProfile: (email: string) => Promise<void>;
+  fetchUserProfile: (email: string, userId?: string) => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => Promise<{ error: any | null }>;
 }
 

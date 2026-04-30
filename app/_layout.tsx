@@ -1,10 +1,12 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../context/AuthContext';
-import { LanguageProvider } from '../context/LanguageContext'; // ← ADDED
+import { LanguageProvider } from '../context/LanguageContext';
 
 function InitialLayout() {
   const { session, isLoading } = useAuth();
@@ -52,7 +54,6 @@ function InitialLayout() {
   );
 }
 
-// ── ADDED: inner shell that has access to useAuth so userId flows into LanguageProvider ──
 function AppWithLanguage() {
   const { user } = useAuth();
   return (
@@ -64,6 +65,18 @@ function AppWithLanguage() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6A25D7" />
+      </View>
+    );
+  }
+
   return (
     <AuthProvider>
       <AppWithLanguage />

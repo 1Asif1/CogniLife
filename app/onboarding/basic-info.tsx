@@ -9,12 +9,31 @@ import { GradientBackground } from '../../components/GradientBackground';
 import { Input } from '../../components/Input';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslated } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabase';
 
 export default function BasicInfoScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  
+
+  // ✅ Moved inside the component (was incorrectly outside before)
+  const tx = useTranslated({
+    cardTitle: 'Basic Information',
+    cardSubtitle: 'Help us understand you better',
+    labelGender: 'Gender',
+    optionMale: 'Male',
+    optionFemale: 'Female',
+    optionOther: 'Other',
+    labelHeight: 'Height (cm)',
+    labelWeight: 'Weight (kg)',
+    placeholderHeight: '170',
+    placeholderWeight: '70',
+    continueBtn: 'Continue >',
+    errorFields: 'Please fill in all fields',
+    errorLogin: 'You must be logged in',
+    errorUpdate: 'Error updating profile',
+  });
+
   const [gender, setGender] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
@@ -23,12 +42,12 @@ export default function BasicInfoScreen() {
 
   const handleContinue = async () => {
     if (!gender || !height || !weight) {
-      setError('Please fill in all fields');
+      setError(tx.errorFields);
       return;
     }
 
     if (!user) {
-      setError('You must be logged in');
+      setError(tx.errorLogin);
       return;
     }
 
@@ -46,10 +65,10 @@ export default function BasicInfoScreen() {
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
-      
+
       router.push('/onboarding/lifestyle');
     } catch (e: any) {
-      setError(e.message || 'Error updating profile');
+      setError(e.message || tx.errorUpdate);
     } finally {
       setLoading(false);
     }
@@ -63,14 +82,14 @@ export default function BasicInfoScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            
+
             <View style={styles.header}>
               <View style={styles.logoContainer}>
                 <Ionicons name="pulse" size={32} color={theme.colors.primary} />
               </View>
               <Text style={styles.title}>CogniLife</Text>
               <Text style={styles.subtitle}>Your AI Health Intelligence</Text>
-              
+
               <View style={styles.dotsContainer}>
                 <View style={[styles.dot, styles.activeDot]} />
                 <View style={styles.dot} />
@@ -79,51 +98,54 @@ export default function BasicInfoScreen() {
             </View>
 
             <Card style={styles.card}>
-              <Text style={styles.cardTitle}>Basic Information</Text>
-              <Text style={styles.cardSubtitle}>Help us understand you better</Text>
+              <Text style={styles.cardTitle}>{tx.cardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{tx.cardSubtitle}</Text>
 
               {error ? (
                 <Text style={{ color: theme.colors.danger, marginBottom: 12, fontSize: 13 }}>
                   {error}
                 </Text>
               ) : null}
-              
-              <Text style={styles.label}>Gender</Text>
+
+              <Text style={styles.label}>{tx.labelGender}</Text>
               <View style={styles.genderRow}>
-                {['Male', 'Female', 'Other'].map(option => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.genderOption,
-                      gender === option && styles.genderOptionSelected
-                    ]}
-                    onPress={() => setGender(option)}
-                  >
-                    <Text style={[
-                      styles.genderText,
-                      gender === option && styles.genderTextSelected
-                    ]}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {[tx.optionMale, tx.optionFemale, tx.optionOther].map((option, index) => {
+                  const rawValues = ['Male', 'Female', 'Other'];
+                  return (
+                    <TouchableOpacity
+                      key={rawValues[index]}
+                      style={[
+                        styles.genderOption,
+                        gender === rawValues[index] && styles.genderOptionSelected
+                      ]}
+                      onPress={() => setGender(rawValues[index])}
+                    >
+                      <Text style={[
+                        styles.genderText,
+                        gender === rawValues[index] && styles.genderTextSelected
+                      ]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              
+
               <View style={styles.row}>
                 <View style={styles.halfWidth}>
-                  <Input 
-                    label="Height (cm)" 
-                    placeholder="170" 
-                    keyboardType="numeric" 
+                  <Input
+                    label={tx.labelHeight}
+                    placeholder={tx.placeholderHeight}
+                    keyboardType="numeric"
                     value={height}
                     onChangeText={setHeight}
                   />
                 </View>
                 <View style={styles.halfWidth}>
-                  <Input 
-                    label="Weight (kg)" 
-                    placeholder="70" 
-                    keyboardType="numeric" 
+                  <Input
+                    label={tx.labelWeight}
+                    placeholder={tx.placeholderWeight}
+                    keyboardType="numeric"
                     value={weight}
                     onChangeText={setWeight}
                   />
@@ -133,9 +155,9 @@ export default function BasicInfoScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginTop: 16 }} />
               ) : (
-                <Button 
-                  title="Continue >" 
-                  onPress={handleContinue} 
+                <Button
+                  title={tx.continueBtn}
+                  onPress={handleContinue}
                   style={styles.button}
                 />
               )}
@@ -148,17 +170,16 @@ export default function BasicInfoScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  scrollContent: { 
-    flexGrow: 1, 
-    justifyContent: 'center', 
-    padding: 24 
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24
   },
-  header: { 
-    alignItems: 'center', 
-    marginBottom: 40 
+  header: {
+    alignItems: 'center',
+    marginBottom: 40
   },
   label: {
     ...theme.typography.h3,

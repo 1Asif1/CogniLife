@@ -128,6 +128,7 @@ export function useTranslated<T extends Record<string, string>>(source: T): T {
   const { language } = useLanguage();
   // ✅ Stable key so the object identity doesn't thrash the effect
   const sourceRef = useRef(source);
+  sourceRef.current = source;
   const [translated, setTranslated] = useState<T>(source);
 
   useEffect(() => {

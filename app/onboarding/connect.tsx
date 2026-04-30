@@ -8,10 +8,11 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslated } from '../../context/LanguageContext';
 import {
-    hasHealthPermissions,
-    initializeHealthConnect,
-    requestHealthPermissions
+  hasHealthPermissions,
+  initializeHealthConnect,
+  requestHealthPermissions
 } from '../../services/healthConnectService';
 import { screenTimeService } from '../../services/screenTimeService';
 
@@ -24,9 +25,10 @@ interface PermissionCardProps {
   status: 'idle' | 'granted' | 'denied' | 'loading';
   onPress: () => void;
   buttonLabel: string;
+  grantedLabel: string;
 }
 
-function PermissionCard({ icon, iconColor, iconBg, title, description, status, onPress, buttonLabel }: PermissionCardProps) {
+function PermissionCard({ icon, iconColor, iconBg, title, description, status, onPress, buttonLabel, grantedLabel }: PermissionCardProps) {
   return (
     <View style={styles.permCard}>
       <View style={styles.permCardHeader}>
@@ -44,7 +46,7 @@ function PermissionCard({ icon, iconColor, iconBg, title, description, status, o
         ) : status === 'granted' ? (
           <View style={styles.grantedBadge}>
             <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-            <Text style={styles.grantedText}>Connected</Text>
+            <Text style={styles.grantedText}>{grantedLabel}</Text>
           </View>
         ) : (
           <TouchableOpacity style={styles.connectBtn} onPress={onPress}>
@@ -63,6 +65,22 @@ export default function ConnectScreen() {
   const [screenTimeStatus, setScreenTimeStatus] = useState<'idle' | 'granted' | 'denied' | 'loading'>('idle');
   const [healthStatus, setHealthStatus] = useState<'idle' | 'granted' | 'denied' | 'loading'>('idle');
 
+  const tx = useTranslated({
+    cardTitle: 'Connect & Permissions',
+    cardSubtitle: 'Enable data collection for better insights',
+    screenTimeTitle: 'Screen Time',
+    screenTimeDesc: 'Track daily phone usage and late-night screen time to identify digital wellness patterns.',
+    screenTimeBtn: 'Grant Access',
+    healthTitle: 'Health Connect',
+    healthDesc: 'Sync sleep, activity, and fitness data from your wearable device via Google Health Connect.',
+    healthBtn: 'Connect',
+    connected: 'Connected',
+    infoText: 'Your data stays private and is only used to generate personalized health insights. You can revoke access anytime.',
+    getStarted: 'Get Started >',
+    skip: 'Skip for now',
+    back: 'Back',
+  });
+
   useEffect(() => {
     checkPermissions();
   }, []);
@@ -70,7 +88,7 @@ export default function ConnectScreen() {
   const checkPermissions = async () => {
     const hasScreenTime = await screenTimeService.checkPermission();
     setScreenTimeStatus(hasScreenTime ? 'granted' : 'idle');
-    
+
     const hasHealth = hasHealthPermissions();
     setHealthStatus(hasHealth ? 'granted' : 'idle');
   };
@@ -89,9 +107,8 @@ export default function ConnectScreen() {
   };
 
   const handleGetStarted = async () => {
-    // Re-fetch the full profile so home/profile screens have up-to-date data
     if (user) {
-      await fetchUserProfile(user.email, user.id);
+      await fetchUserProfile(user.email ?? '', user.id);
     }
     router.replace('/(tabs)');
   };
@@ -106,7 +123,7 @@ export default function ConnectScreen() {
             </View>
             <Text style={styles.title}>CogniLife</Text>
             <Text style={styles.subtitle}>Your AI Health Intelligence</Text>
-            
+
             <View style={styles.dotsContainer}>
               <View style={styles.dot} />
               <View style={styles.dot} />
@@ -115,52 +132,50 @@ export default function ConnectScreen() {
           </View>
 
           <Card style={styles.card}>
-            <Text style={styles.cardTitle}>Connect & Permissions</Text>
-            <Text style={styles.cardSubtitle}>Enable data collection for better insights</Text>
+            <Text style={styles.cardTitle}>{tx.cardTitle}</Text>
+            <Text style={styles.cardSubtitle}>{tx.cardSubtitle}</Text>
 
-            {/* Screen Time Permission */}
             <PermissionCard
               icon="phone-portrait-outline"
               iconColor={theme.colors.primary}
               iconBg="#EDE9FE"
-              title="Screen Time"
-              description="Track daily phone usage and late-night screen time to identify digital wellness patterns."
+              title={tx.screenTimeTitle}
+              description={tx.screenTimeDesc}
               status={screenTimeStatus}
               onPress={handleScreenTimePermission}
-              buttonLabel="Grant Access"
+              buttonLabel={tx.screenTimeBtn}
+              grantedLabel={tx.connected}
             />
 
-            {/* Health Connect / Wearable */}
             <PermissionCard
               icon="watch-outline"
               iconColor={theme.colors.secondary}
               iconBg="#DBEAFE"
-              title="Health Connect"
-              description="Sync sleep, activity, and fitness data from your wearable device via Google Health Connect."
+              title={tx.healthTitle}
+              description={tx.healthDesc}
               status={healthStatus}
               onPress={handleHealthConnect}
-              buttonLabel="Connect"
+              buttonLabel={tx.healthBtn}
+              grantedLabel={tx.connected}
             />
 
             <View style={styles.infoBox}>
               <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.success} style={{ marginRight: 10 }} />
-              <Text style={styles.infoText}>
-                Your data stays private and is only used to generate personalized health insights. You can revoke access anytime.
-              </Text>
+              <Text style={styles.infoText}>{tx.infoText}</Text>
             </View>
 
-            <Button 
-              title="Get Started >" 
-              onPress={handleGetStarted} 
+            <Button
+              title={tx.getStarted}
+              onPress={handleGetStarted}
               style={styles.button}
             />
-            
+
             <TouchableOpacity onPress={handleGetStarted} style={styles.skipButton}>
-              <Text style={styles.skipText}>Skip for now</Text>
+              <Text style={styles.skipText}>{tx.skip}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Text style={styles.backText}>Back</Text>
+              <Text style={styles.backText}>{tx.back}</Text>
             </TouchableOpacity>
           </Card>
         </ScrollView>
@@ -186,8 +201,6 @@ const styles = StyleSheet.create({
   card: { padding: 24 },
   cardTitle: { ...theme.typography.h2, marginBottom: 4 },
   cardSubtitle: { ...theme.typography.small, marginBottom: 20 },
-  
-  // Permission Card styles
   permCard: {
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -253,7 +266,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
-
   infoBox: {
     flexDirection: 'row',
     backgroundColor: '#F0FDF4',
