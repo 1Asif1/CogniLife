@@ -170,50 +170,68 @@ export default function DailyLogScreen() {
     }, [user])
   );      
   const loadData = async () => {
-    setLoadingAuto(true);
-    try {
-      const hasScreenTime = await screenTimeService.checkPermission();
-      setScreenTimePermission(hasScreenTime);
-      const hasHealth = hasHealthPermissions();
-      setHealthConnectPermission(hasHealth);
+  setLoadingAuto(true);
 
-      if (user) {
-        const existing = await getTodayLog(user.id);
-        if (existing) {
-          setExistingLog(true);
-          setMealsPerDay(existing.mealsPerDay);
-          setExistingCalories(existing.calorieIntake || 0);
-          setCalorieIntake('');
-          setFoodQuality(existing.foodQuality ?? 1);
-          setAutoData({
-            screenTime: existing.screenTime,
-            lateNightUsage: existing.lateNightUsage,
-            sleepHours: existing.sleepHours,
-            activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
-            sittingTime: existing.sittingTime,
-            inactivityPeriods: existing.inactivityPeriods,
-            steps: existing.steps,
-          });
-        }
+  try {
+    const hasScreenTime = await screenTimeService.checkPermission();
+    console.log('[DailyLog] screenTime permission:', hasScreenTime);
+    setScreenTimePermission(hasScreenTime);
+
+    const hasHealth = hasHealthPermissions();
+    setHealthConnectPermission(hasHealth);
+
+    if (user) {
+      const existing = await getTodayLog(user.id);
+      if (existing) {
+        setExistingLog(true);
+        setMealsPerDay(existing.mealsPerDay);
+        setExistingCalories(existing.calorieIntake || 0);
+        setCalorieIntake('');
+        setFoodQuality(existing.foodQuality ?? 1);
+        // Only set non-screen-time auto data from DB as fallback
+        setAutoData(prev => ({
+          ...prev,
+          sleepHours: existing.sleepHours,
+          activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
+          sittingTime: existing.sittingTime,
+          inactivityPeriods: existing.inactivityPeriods,
+          steps: existing.steps,
+        }));
       }
-
-      const data = await collectAutoData();
-      setAutoData(prev => ({
-        ...prev,
-        screenTime: data.screenTime || prev.screenTime,
-        lateNightUsage: data.lateNightUsage || prev.lateNightUsage,
-        sleepHours: data.sleepHours || prev.sleepHours,
-        activityLevel: data.activityLevel || prev.activityLevel,
-        sittingTime: data.sittingTime || prev.sittingTime,
-        inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
-        steps: data.steps || prev.steps,
-      }));
-    } catch (error) {
-      console.error('Auto collection failed:', error);
-    } finally {
-      setLoadingAuto(false);
     }
-  };
+
+    // Always fetch FRESH screen time from the native module
+    if (hasScreenTime) {
+      try {
+        const freshScreenData = await screenTimeService.getScreenTimeData();
+        console.log('[DailyLog] Fresh screen time data:', freshScreenData);
+        setAutoData(prev => ({
+          ...prev,
+          screenTime: freshScreenData.screenTime,
+          lateNightUsage: freshScreenData.lateNightUsage,
+        }));
+      } catch (error) {
+        console.error('[DailyLog] Failed to fetch fresh screen time:', error);
+      }
+    }
+
+    // Collect fresh health data (sleep, steps, etc.)
+    const data = await collectAutoData();
+    setAutoData(prev => ({
+      ...prev,
+      sleepHours: data.sleepHours || prev.sleepHours,
+      activityLevel: data.activityLevel || prev.activityLevel,
+      sittingTime: data.sittingTime || prev.sittingTime,
+      inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
+      steps: data.steps || prev.steps,
+    }));
+
+  } catch (error) {
+    console.error('Auto collection failed:', error);
+  } finally {
+    setLoadingAuto(false);
+  }
+};
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -82,11 +82,15 @@ class ScreenTimeService {
       const data = await ScreenTimeModule.getUsageStats();
       
       // Data arrives in MINUTES from the native module.
+      console.log('[ScreenTime] Raw from native (minutes):', data.screenTime, 'late:', data.lateNightUsage);
+      
       // We convert to decimal hours for internal ML model compatibility.
-      return {
+      const result = {
         screenTime: Number((data.screenTime / 60).toFixed(2)),
         lateNightUsage: Number((data.lateNightUsage / 60).toFixed(2)),
       };
+      console.log('[ScreenTime] Converted to hours:', result.screenTime, 'late:', result.lateNightUsage);
+      return result;
     } catch (e) {
       console.error('ScreenTimeModule Error:', e);
       return { screenTime: 0, lateNightUsage: 0 };
