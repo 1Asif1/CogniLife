@@ -11,6 +11,7 @@ import { theme } from '../../constants/theme';
 import { useAuth } from '../../context/AuthContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
 import { getStreakData } from '../../services/dailyLogService';
+import { getHealthConnectStatus, openHealthConnectSettings } from '../../services/healthConnectService';
 
 interface BluetoothDevice {
   id: string;
@@ -49,6 +50,15 @@ export default function ProfileScreen() {
     onConfirm?: () => void;
     showCancel?: boolean;
   } | null>(null);
+  
+  // Health Connect state
+  const [healthConnectStatus, setHealthConnectStatus] = useState<{
+    available: boolean;
+    installed: boolean;
+    hasPermission: boolean;
+    deviceName: string;
+    lastSync: string | null;
+  } | null>(null);
 
   // Edit Profile State
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -68,6 +78,8 @@ export default function ProfileScreen() {
       if (userProfile?.id) {
         getStreakData(userProfile.id).then(setStreakData);
       }
+      // Fetch Health Connect status
+      getHealthConnectStatus().then(setHealthConnectStatus);
     }, [userProfile?.id])
   );
 
@@ -189,6 +201,18 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleOpenHealthConnect = async () => {
+    const opened = await openHealthConnectSettings();
+    if (!opened) {
+      setModalConfig({
+        title: 'Error',
+        message: 'Could not open Health Connect. Please ensure it is installed on your device.',
+        showCancel: false,
+      });
+      setModalVisible(true);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
@@ -264,6 +288,8 @@ export default function ProfileScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Connected Devices</Text>
+          
+          {/* Bluetooth Device */}
           {device ? (
             <View style={styles.deviceRow}>
               <View style={styles.deviceIcon}>
@@ -287,16 +313,48 @@ export default function ProfileScreen() {
                 <Ionicons name="watch-outline" size={24} color={theme.colors.secondary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.deviceTitle}>No Device Connected</Text>
+                <Text style={styles.deviceTitle}>No Bluetooth Device</Text>
                 <Text style={styles.deviceSub}>Tap 'Add New Device' to connect</Text>
               </View>
             </View>
           )}
+          
+          {/* Health Connect Device */}
+          {healthConnectStatus && (
+            <View style={[styles.deviceRow, { marginTop: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 16 }]}>
+              <View style={[styles.deviceIcon, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="fitness-outline" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deviceTitle}>{healthConnectStatus.deviceName}</Text>
+                <Text style={styles.deviceSub}>
+                  {healthConnectStatus.installed 
+                    ? (healthConnectStatus.hasPermission ? 'Connected' : 'Not authorized')
+                    : 'Not installed'
+                  }
+                </Text>
+                {healthConnectStatus.lastSync && (
+                  <Text style={styles.deviceSync}>
+                    Last sync: {new Date(healthConnectStatus.lastSync).toLocaleTimeString()}
+                  </Text>
+                )}
+              </View>
+              {healthConnectStatus.installed && (
+                <TouchableOpacity
+                  style={[styles.disconnectBtn, { backgroundColor: theme.colors.primary + '15' }]}
+                  onPress={handleOpenHealthConnect}
+                >
+                  <Text style={[styles.disconnectBtnText, { color: theme.colors.primary }]}>Open</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          
           <TouchableOpacity 
             style={styles.addDeviceBtn} 
             onPress={handleAddDevice}
           >
-            <Text style={styles.addDeviceText}>+ Add New Device</Text>
+            <Text style={styles.addDeviceText}>+ Add Bluetooth Device</Text>
           </TouchableOpacity>
           {message !== "" && (
             <Text style={{ marginTop: 10, textAlign: "center" }}>

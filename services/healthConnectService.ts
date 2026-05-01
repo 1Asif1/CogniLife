@@ -1,4 +1,4 @@
-import { Alert, Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 export type ConfirmDialog = (config: {
   title: string;
@@ -9,7 +9,7 @@ export type ConfirmDialog = (config: {
 
 export interface HealthData {
   sleepHours: number;
-  activityLevel: 'low' | 'moderate' | 'high';
+  activityLevel: number;       // 1-5 scale
   sittingTime: number;         // hours
   inactivityPeriods: number;   // count of 1hr+ inactive stretches
   steps: number;               // step count for today
@@ -30,14 +30,12 @@ export interface HealthData {
  * uncomment the real implementation and remove the simulated methods.
  */
 
-// Uncomment when react-native-health-connect is installed:
-// import {
-//   initialize,
-//   requestPermission,
-//   readRecords,
-//   getSdkStatus,
-//   SdkAvailabilityStatus,
-// } from 'react-native-health-connect';
+import {
+    getSdkStatus,
+    initialize,
+    readRecords,
+    SdkAvailabilityStatus
+} from 'react-native-health-connect';
 
 let isInitialized = false;
 let hasPermission = false;
@@ -49,16 +47,16 @@ export async function initializeHealthConnect(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
 
   try {
-    // Uncomment for real implementation:
-    // const isAvailable = await getSdkStatus();
-    // if (isAvailable !== SdkAvailabilityStatus.SDK_AVAILABLE) {
-    //   console.log('Health Connect is not available on this device');
-    //   return false;
-    // }
-    // await initialize();
-    // isInitialized = true;
-    
-    // Simulated:
+    const isAvailable = await getSdkStatus();
+    if (isAvailable !== SdkAvailabilityStatus.SDK_AVAILABLE) {
+      console.log('Health Connect is not available on this device');
+      // Handle case where Health Connect is not installed
+      if (isAvailable === SdkAvailabilityStatus.SDK_UNAVAILABLE) {
+        console.log('Health Connect app is not installed. User should install it from Play Store.');
+      }
+      return false;
+    }
+    await initialize();
     isInitialized = true;
     return true;
   } catch (error) {
@@ -69,81 +67,126 @@ export async function initializeHealthConnect(): Promise<boolean> {
 
 /**
  * Request Health Connect permissions
+ * Try to check if permissions are already granted, if not return false
+ * The user should grant permissions in Health Connect app manually
  */
 export async function requestHealthPermissions(showConfirm?: ConfirmDialog): Promise<boolean> {
-  if (!isInitialized) {
-    const initialized = await initializeHealthConnect();
-    if (!initialized) return false;
+  console.log('[Health Connect] requestHealthPermissions called');
+  
+  if (Platform.OS !== 'android') {
+    console.log('[Health Connect] Not on Android, skipping');
+    return false;
   }
 
   try {
-    // Uncomment for real implementation:
-    // const permissions = await requestPermission([
-    //   { accessType: 'read', recordType: 'SleepSession' },
-    //   { accessType: 'read', recordType: 'Steps' },
-    //   { accessType: 'read', recordType: 'ExerciseSession' },
-    //   { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-    // ]);
-    // hasPermission = permissions.length > 0;
-    
-    // Simulated:
-    const confirmed = showConfirm
-      ? await showConfirm({
-          title: 'Health Connect',
-          message: 'CogniLife would like to access your health data from Google Health Connect to track:\n\n• Sleep duration\n• Activity & steps\n• Sitting time\n• Exercise sessions\n\nThis data helps provide personalized health insights.',
-          confirmText: 'Allow',
-          cancelText: 'Deny',
-        })
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Health Connect',
-            'CogniLife would like to access your health data from Google Health Connect to track:\n\n• Sleep duration\n• Activity & steps\n• Sitting time\n• Exercise sessions\n\nThis data helps provide personalized health insights.',
-            [
-              { text: 'Deny', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Allow', onPress: () => resolve(true) },
-            ]
-          );
-        });
+    console.log('[Health Connect] Checking initialization status');
+    if (!isInitialized) {
+      console.log('[Health Connect] Not initialized, initializing now...');
+      const initialized = await initializeHealthConnect();
+      console.log('[Health Connect] Initialization result:', initialized);
+      if (!initialized) {
+        console.log('[Health Connect] Initialization failed');
+        if (showConfirm) {
+          await showConfirm({
+            title: 'Health Connect Not Available',
+            message: 'Health Connect is not available on this device. Please install it from the Play Store.',
+            confirmText: 'OK',
+          });
+        }
+        return false;
+      }
+    }
 
-    hasPermission = confirmed;
-    return confirmed;
+    console.log('[Health Connect] Checking if permissions are already granted');
+    // Try to read a small amount of data to check if permissions are granted
+    // This is safer than requesting permissions which causes crashes
+    try {
+      const now = new Date();
+      const startOfYesterday = new Date(now);
+      startOfYesterday.setDate(now.getDate() - 1);
+      startOfYesterday.setHours(0, 0, 0, 0);
+      
+      const result = await readRecords('Steps', {
+        timeRangeFilter: {
+          operator: 'between',
+          startTime: startOfYesterday.toISOString(),
+          endTime: now.toISOString(),
+        },
+      });
+      
+      console.log('[Health Connect] Successfully read steps data, permissions are granted');
+      hasPermission = true;
+      return true;
+    } catch (readError) {
+      console.log('[Health Connect] Could not read data, permissions may not be granted:', readError);
+      if (showConfirm) {
+        await showConfirm({
+          title: 'Permissions Required',
+          message: 'Please open Health Connect and grant permissions for Steps and Sleep data.',
+          confirmText: 'OK',
+        });
+      }
+      return false;
+    }
   } catch (error) {
-    console.error('Failed to request Health Connect permissions:', error);
+    console.error('[Health Connect] Failed to check permissions:', error);
+    console.error('[Health Connect] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     return false;
   }
 }
 
 /**
- * Get sleep hours from last night
+ * Get sleep hours from last 24 hours
  */
 async function getSleepHours(): Promise<number> {
-  if (!hasPermission) return 0;
+  if (!hasPermission) {
+    console.log('Health Connect permission not granted for sleep data');
+    return 0;
+  }
 
   try {
-    // Uncomment for real implementation:
-    // const now = new Date();
-    // const startOfYesterday = new Date(now);
-    // startOfYesterday.setDate(now.getDate() - 1);
-    // startOfYesterday.setHours(18, 0, 0, 0); // 6 PM yesterday
-    //
-    // const result = await readRecords('SleepSession', {
-    //   timeRangeFilter: {
-    //     operator: 'between',
-    //     startTime: startOfYesterday.toISOString(),
-    //     endTime: now.toISOString(),
-    //   },
-    // });
-    //
-    // let totalSleepMs = 0;
-    // result.records.forEach((record: any) => {
-    //   const start = new Date(record.startTime).getTime();
-    //   const end = new Date(record.endTime).getTime();
-    //   totalSleepMs += (end - start);
-    // });
-    // return Math.round((totalSleepMs / (1000 * 60 * 60)) * 10) / 10;
+    const now = new Date();
+    const startOfYesterday = new Date(now);
+    startOfYesterday.setDate(now.getDate() - 1);
+    startOfYesterday.setHours(0, 0, 0, 0); // Start of yesterday
 
-    // Simulated: return realistic sleep hours
-    return 6.5 + Math.random() * 2; // 6.5 - 8.5 hours
+    const result = await readRecords('SleepSession', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: startOfYesterday.toISOString(),
+        endTime: now.toISOString(),
+      },
+    });
+
+    if (!result.records || result.records.length === 0) {
+      console.log('No sleep records found in the last 24 hours');
+      return 0;
+    }
+
+    let totalSleepMs = 0;
+    result.records.forEach((record: any) => {
+      try {
+        const start = new Date(record.startTime).getTime();
+        const end = new Date(record.endTime).getTime();
+        // Validate dates
+        if (!isNaN(start) && !isNaN(end) && end > start) {
+          totalSleepMs += (end - start);
+        }
+      } catch (e) {
+        console.error('Error processing sleep record:', e);
+      }
+    });
+    
+    // Convert milliseconds to hours, round to 1 decimal place
+    const sleepHours = Math.round((totalSleepMs / (1000 * 60 * 60)) * 10) / 10;
+    
+    // Validate reasonable sleep range (0-24 hours)
+    if (sleepHours < 0 || sleepHours > 24) {
+      console.warn('Sleep hours out of reasonable range:', sleepHours);
+      return 0;
+    }
+    
+    return sleepHours;
   } catch (error) {
     console.error('Failed to read sleep data:', error);
     return 0;
@@ -151,33 +194,52 @@ async function getSleepHours(): Promise<number> {
 }
 
 /**
- * Get step count for today
+ * Get step count for last 24 hours
  */
 async function getStepCount(): Promise<number> {
-  if (!hasPermission) return 0;
+  if (!hasPermission) {
+    console.log('Health Connect permission not granted for steps data');
+    return 0;
+  }
 
   try {
-    // Uncomment for real implementation:
-    // const now = new Date();
-    // const startOfDay = new Date(now);
-    // startOfDay.setHours(0, 0, 0, 0);
-    //
-    // const result = await readRecords('Steps', {
-    //   timeRangeFilter: {
-    //     operator: 'between',
-    //     startTime: startOfDay.toISOString(),
-    //     endTime: now.toISOString(),
-    //   },
-    // });
-    //
-    // let totalSteps = 0;
-    // result.records.forEach((record: any) => {
-    //   totalSteps += record.count;
-    // });
-    // return totalSteps;
+    const now = new Date();
+    const startOfYesterday = new Date(now);
+    startOfYesterday.setDate(now.getDate() - 1);
+    startOfYesterday.setHours(0, 0, 0, 0); // Start of yesterday
 
-    // Simulated:
-    return Math.floor(2000 + Math.random() * 8000);
+    const result = await readRecords('Steps', {
+      timeRangeFilter: {
+        operator: 'between',
+        startTime: startOfYesterday.toISOString(),
+        endTime: now.toISOString(),
+      },
+    });
+
+    if (!result.records || result.records.length === 0) {
+      console.log('No step records found in the last 24 hours');
+      return 0;
+    }
+
+    let totalSteps = 0;
+    result.records.forEach((record: any) => {
+      try {
+        // Validate step count is a number and non-negative
+        if (typeof record.count === 'number' && record.count >= 0) {
+          totalSteps += record.count;
+        }
+      } catch (e) {
+        console.error('Error processing step record:', e);
+      }
+    });
+    
+    // Validate reasonable step range (0-100,000 steps per day)
+    if (totalSteps < 0 || totalSteps > 100000) {
+      console.warn('Step count out of reasonable range:', totalSteps);
+      return 0;
+    }
+    
+    return totalSteps;
   } catch (error) {
     console.error('Failed to read steps data:', error);
     return 0;
@@ -185,12 +247,20 @@ async function getStepCount(): Promise<number> {
 }
 
 /**
- * Derive activity level from step count
+ * Derive activity level from step count (1-5 scale)
+ * Assumption: Based on WHO recommendations and general activity guidelines
+ * <3000: Sedentary (Level 1)
+ * <6000: Low activity (Level 2)
+ * <9000: Moderate activity (Level 3)
+ * <12000: Active (Level 4)
+ * >=12000: Very active (Level 5)
  */
-function deriveActivityLevel(steps: number): 'low' | 'moderate' | 'high' {
-  if (steps < 4000) return 'low';
-  if (steps < 8000) return 'moderate';
-  return 'high';
+function deriveActivityLevel(steps: number): number {
+  if (steps < 3000) return 1;
+  if (steps < 6000) return 2;
+  if (steps < 9000) return 3;
+  if (steps < 12000) return 4;
+  return 5;
 }
 
 /**
@@ -200,7 +270,7 @@ export async function getHealthData(): Promise<HealthData> {
   if (!hasPermission) {
     return {
       sleepHours: 0,
-      activityLevel: 'low',
+      activityLevel: 1,
       sittingTime: 0,
       inactivityPeriods: 0,
       steps: 0,
@@ -212,15 +282,34 @@ export async function getHealthData(): Promise<HealthData> {
     getStepCount(),
   ]);
 
+  // Only calculate derived features if we have actual health data
+  // If no steps and no sleep data, don't derive features from screen time
+  const hasHealthData = steps > 0 || sleepHours > 0;
+  
+  if (!hasHealthData) {
+    console.log('[Health Connect] No health data available, returning zeros');
+    return {
+      sleepHours: 0,
+      activityLevel: 0,  // 0 indicates no data, not a valid activity level
+      sittingTime: 0,
+      inactivityPeriods: 0,
+      steps: 0,
+    };
+  }
+
   const activityLevel = deriveActivityLevel(steps);
   
-  // Estimate sitting time: 16 waking hours minus active time
-  // Rough estimate: 1 step ≈ 0.5 seconds of activity
+  // Estimate sitting time (hours)
+  // Assumption: 16 waking hours per day (8 hours sleep)
+  // Active time estimate: 1 step ≈ 0.5 seconds of walking/movement
+  // This is a rough approximation; actual sitting time depends on many factors
   const activeHours = (steps * 0.5) / 3600;
   const wakingHours = 16;
   const sittingTime = Math.max(0, Math.round((wakingHours - activeHours) * 10) / 10);
   
-  // Estimate inactivity periods: hours of sitting / threshold
+  // Estimate inactivity periods (count of 1+ hour inactive stretches)
+  // Assumption: Inactivity periods occur every ~2 hours of sitting
+  // This is a heuristic estimate; actual inactivity varies by user behavior
   const inactivityPeriods = Math.floor(sittingTime / 2);
 
   return {
@@ -244,4 +333,91 @@ export function isHealthConnectAvailable(): boolean {
  */
 export function hasHealthPermissions(): boolean {
   return hasPermission;
+}
+
+/**
+ * Get Health Connect status and device info
+ * Returns information about Health Connect availability and connection status
+ */
+export async function getHealthConnectStatus(): Promise<{
+  available: boolean;
+  installed: boolean;
+  hasPermission: boolean;
+  deviceName: string;
+  lastSync: string | null;
+}> {
+  if (Platform.OS !== 'android') {
+    return {
+      available: false,
+      installed: false,
+      hasPermission: false,
+      deviceName: 'Not available on iOS',
+      lastSync: null,
+    };
+  }
+
+  try {
+    const sdkStatus = await getSdkStatus();
+    const installed = sdkStatus === SdkAvailabilityStatus.SDK_AVAILABLE;
+    
+    return {
+      available: installed,
+      installed,
+      hasPermission: hasPermission,
+      deviceName: installed ? 'Google Health Connect' : 'Not installed',
+      lastSync: hasPermission ? new Date().toISOString() : null,
+    };
+  } catch (error) {
+    console.error('Failed to get Health Connect status:', error);
+    return {
+      available: false,
+      installed: false,
+      hasPermission: false,
+      deviceName: 'Error checking status',
+      lastSync: null,
+    };
+  }
+}
+
+/**
+ * Open Health Connect app settings
+ * This opens the Health Connect app on the device
+ */
+export async function openHealthConnectSettings(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+
+  try {
+    console.log('Attempting to open Health Connect settings');
+    
+    // Try to open Health Connect app using package scheme
+    const healthConnectUrl = 'android-app://com.google.android.apps.healthconnect';
+    console.log('Checking if can open URL:', healthConnectUrl);
+    
+    const canOpen = await Linking.canOpenURL(healthConnectUrl);
+    console.log('Can open Health Connect:', canOpen);
+    
+    if (canOpen) {
+      console.log('Opening Health Connect app');
+      await Linking.openURL(healthConnectUrl);
+      return true;
+    }
+    
+    // Fallback: try opening with intent scheme
+    const intentUrl = 'intent://com.google.android.apps.healthconnect#Intent;package=com.google.android.apps.healthconnect;end';
+    console.log('Trying intent URL fallback');
+    await Linking.openURL(intentUrl);
+    return true;
+  } catch (error) {
+    console.error('Failed to open Health Connect settings:', error);
+    // Final fallback: open Play Store in browser
+    try {
+      const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthconnect';
+      console.log('Opening Play Store in browser as final fallback');
+      await Linking.openURL(playStoreUrl);
+      return true;
+    } catch (browserError) {
+      console.error('Failed to open Play Store:', browserError);
+      return false;
+    }
+  }
 }

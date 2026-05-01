@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Platform,
@@ -48,7 +48,7 @@ export default function DailyLogScreen() {
     screenTime: 0,
     lateNightUsage: 0,
     sleepHours: 0,
-    activityLevel: 'low',
+    activityLevel: 1,
     sittingTime: 0,
     inactivityPeriods: 0,
     steps: 0,
@@ -118,15 +118,23 @@ export default function DailyLogScreen() {
         setExistingCalories(existing.calorieIntake || 0);
         setCalorieIntake('');
         setFoodQuality(existing.foodQuality ?? 1);
-        // Only set non-screen-time auto data from DB as fallback
-        setAutoData(prev => ({
-          ...prev,
-          sleepHours: existing.sleepHours,
-          activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
-          sittingTime: existing.sittingTime,
-          inactivityPeriods: existing.inactivityPeriods,
-          steps: existing.steps,
-        }));
+        
+        // Only set non-screen-time auto data from DB if it has valid health data
+        // getTodayLog already filters by today's date, so data is from today
+        const hasValidHealthData = existing.steps > 0 || existing.sleepHours > 0 || (existing.activityLevel || 0) > 0;
+        
+        if (hasValidHealthData) {
+          setAutoData(prev => ({
+            ...prev,
+            sleepHours: existing.sleepHours,
+            activityLevel: existing.activityLevel as number,
+            sittingTime: existing.sittingTime,
+            inactivityPeriods: existing.inactivityPeriods,
+            steps: existing.steps,
+          }));
+        } else {
+          console.log('[DailyLog] Existing log has no valid health data, skipping health data load');
+        }
       }
     }
 
@@ -145,21 +153,32 @@ export default function DailyLogScreen() {
       }
     }
 
-    // Collect fresh health data (sleep, steps, etc.)
-    try {
-      const data = await collectAutoData();
-      console.log('[DailyLog] collectAutoData result:', data);
-      setAutoData(prev => ({
-        ...prev,
-        // Screen time already set from fresh native call above, don't override
-        sleepHours: data.sleepHours || prev.sleepHours,
-        activityLevel: data.activityLevel || prev.activityLevel,
-        sittingTime: data.sittingTime || prev.sittingTime,
-        inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
-        steps: data.steps || prev.steps,
-      }));
-    } catch (error) {
-      console.error('Auto collection failed:', error);
+    // Collect fresh health data (sleep, steps, etc.) ONLY if Health Connect permissions are granted
+    if (hasHealth) {
+      try {
+        const data = await collectAutoData();
+        console.log('[DailyLog] collectAutoData result:', data);
+        // Only update health data if we have actual data (activityLevel > 0 or steps > 0 or sleepHours > 0)
+        const hasActualHealthData = data.activityLevel > 0 || data.steps > 0 || data.sleepHours > 0;
+        
+        if (hasActualHealthData) {
+          setAutoData(prev => ({
+            ...prev,
+            // Screen time already set from fresh native call above, don't override
+            sleepHours: data.sleepHours || prev.sleepHours,
+            activityLevel: data.activityLevel || prev.activityLevel,
+            sittingTime: data.sittingTime || prev.sittingTime,
+            inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
+            steps: data.steps || prev.steps,
+          }));
+        } else {
+          console.log('[DailyLog] No actual health data collected, preserving existing values');
+        }
+      } catch (error) {
+        console.error('[DailyLog] Health Connect auto collection failed:', error);
+      }
+    } else {
+      console.log('[DailyLog] Skipping Health Connect auto collection - no permissions');
     }
 
     setLoadingAuto(false);
@@ -205,12 +224,18 @@ export default function DailyLogScreen() {
   };
 
   const handleRequestHealthConnect = async () => {
-    await initializeHealthConnect();
-    const granted = await requestHealthPermissions(showConfirm);
-    setHealthConnectPermission(granted);
-    if (granted) {
-      const data = await collectAutoData();
-      setAutoData(prev => ({
+    console.log('[Health Connect] Connect button clicked');
+    try {
+      console.log('[Health Connect] Initializing Health Connect...');
+      await initializeHealthConnect();
+      console.log('[Health Connect] Checking permissions...');
+      const granted = await requestHealthPermissions(showConfirm);
+      setHealthConnectPermission(granted);
+      if (granted) {
+        console.log('[Health Connect] Permissions granted, collecting auto data...');
+        const data = await collectAutoData();
+        console.log('[Health Connect] Auto data collected:', data);
+        setAutoData(prev => ({
         ...prev,
         sleepHours: data.sleepHours,
         activityLevel: data.activityLevel,
@@ -218,6 +243,15 @@ export default function DailyLogScreen() {
         inactivityPeriods: data.inactivityPeriods,
         steps: data.steps,
       }));
+      }
+    } catch (error) {
+      console.error('[Health Connect] Error:', error);
+      setModalConfig({
+        title: 'Error',
+        message: 'Failed to connect to Health Connect. Please try again.',
+        showCancel: false,
+      });
+      setModalVisible(true);
     }
   };
 
@@ -271,19 +305,31 @@ export default function DailyLogScreen() {
     }
   };
 
-  const getActivityColor = (level: string) => {
-    switch (level) {
-      case 'high': return theme.colors.success;
-      case 'moderate': return theme.colors.warning;
-      default: return theme.colors.danger;
-    }
+  const getActivityColor = (level: number) => {
+    // Activity level 1-5 scale
+    // 1-2: Low (red), 3: Moderate (yellow), 4-5: High (green)
+    if (level >= 4) return theme.colors.success;
+    if (level === 3) return theme.colors.warning;
+    return theme.colors.danger;
   };
 
-  const getActivityIcon = (level: string): any => {
+  const getActivityIcon = (level: number): any => {
+    // Activity level 1-5 scale
+    // 1-2: bed (sedentary), 3: walk (moderate), 4-5: flash (active)
+    if (level >= 4) return 'flash';
+    if (level === 3) return 'walk';
+    return 'bed';
+  };
+
+  const getActivityLabel = (level: number): string => {
+    // Convert integer level to display label
     switch (level) {
-      case 'high': return 'flash';
-      case 'moderate': return 'walk';
-      default: return 'bed';
+      case 1: return 'Sedentary';
+      case 2: return 'Low';
+      case 3: return 'Moderate';
+      case 4: return 'Active';
+      case 5: return 'Very Active';
+      default: return 'Unknown';
     }
   };
 
@@ -413,7 +459,7 @@ export default function DailyLogScreen() {
                 <View style={styles.wearableItem}>
                   <Ionicons name={getActivityIcon(autoData.activityLevel)} size={18} color={getActivityColor(autoData.activityLevel)} />
                   <Text style={[styles.wearableValue, { color: getActivityColor(autoData.activityLevel) }]}>
-                    {autoData.activityLevel.charAt(0).toUpperCase() + autoData.activityLevel.slice(1)}
+                    {autoData.activityLevel}
                   </Text>
                   <Text style={styles.wearableLabel}>Activity</Text>
                 </View>
