@@ -325,7 +325,7 @@ export async function getHealthData(): Promise<HealthData> {
     console.log('[Health Connect] No health data available, returning zeros');
     return {
       sleepHours: 0,
-      activityLevel: 0,  // 0 indicates no data, not a valid activity level
+      activityLevel: 1,  // 0 indicates no data, not a valid activity level
       sittingTime: 0,
       inactivityPeriods: 0,
       steps: 0,
