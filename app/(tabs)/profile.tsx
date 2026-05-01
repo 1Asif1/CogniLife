@@ -116,8 +116,8 @@ export default function ProfileScreen() {
     deviceLastSync: 'Last sync: Just now',
     deviceNoConnectHint: "Tap 'Add New Device' to connect",
     namePlaceholder: 'Enter your name',
-    heightPlaceholder: 'e.g. 175',
-    weightPlaceholder: 'e.g. 70',
+    heightPlaceholder: 'e.g. 175 in cm',
+    weightPlaceholder: 'e.g. 70 in kg',
     nameRequired: 'Name is required',
     modalDisconnectMsg: 'Are you sure you want to disconnect',
     modalDeviceFoundTitle: 'Device Found',
@@ -128,6 +128,15 @@ export default function ProfileScreen() {
     modalScanErrorTitle: 'Error',
     modalScanErrorMsg: 'Failed to scan for devices. Please check Bluetooth permissions.',
     appVersion: 'CogniLife v1.0.0',
+    ok: 'OK',
+    cancel: 'Cancel',
+    // Health Connect labels
+    hcNotAvailableOniOS: 'Not available on iOS',
+    hcNotInstalled: 'Not installed',
+    hcErrorCheckingStatus: 'Error checking status',
+    hcNotAuthorized: 'Not authorized',
+    hcOpenErrorTitle: 'Error',
+    hcOpenErrorMessage: 'Could not open Health Connect. Please ensure it is installed on your device.',
   });
 
   const [streakData, setStreakData] = useState({ currentStreak: 0, bestStreak: 0, totalLogs: 0 });
@@ -138,8 +147,12 @@ export default function ProfileScreen() {
         getStreakData(userProfile.id).then(setStreakData);
       }
       // Fetch Health Connect status
-      getHealthConnectStatus().then(setHealthConnectStatus);
-    }, [userProfile?.id])
+      getHealthConnectStatus({
+        notAvailableOniOS: t.hcNotAvailableOniOS,
+        notInstalled: t.hcNotInstalled,
+        errorCheckingStatus: t.hcErrorCheckingStatus,
+      }).then(setHealthConnectStatus);
+    }, [userProfile?.id, t.hcNotAvailableOniOS, t.hcNotInstalled, t.hcErrorCheckingStatus])
   );
 
   const handleLogout = async () => {
@@ -250,8 +263,8 @@ export default function ProfileScreen() {
     const opened = await openHealthConnectSettings();
     if (!opened) {
       setModalConfig({
-        title: 'Error',
-        message: 'Could not open Health Connect. Please ensure it is installed on your device.',
+        title: t.hcOpenErrorTitle,
+        message: t.hcOpenErrorMessage,
         showCancel: false,
       });
       setModalVisible(true);
@@ -374,8 +387,8 @@ export default function ProfileScreen() {
                 <Text style={styles.deviceTitle}>{healthConnectStatus.deviceName}</Text>
                 <Text style={styles.deviceSub}>
                   {healthConnectStatus.installed
-                    ? (healthConnectStatus.hasPermission ? t.deviceConnected : 'Not authorized')
-                    : 'Not installed'
+                    ? (healthConnectStatus.hasPermission ? t.deviceConnected : t.hcNotAuthorized)
+                    : t.hcNotInstalled
                   }
                 </Text>
                 {healthConnectStatus.lastSync && (
@@ -438,6 +451,8 @@ export default function ProfileScreen() {
         message={modalConfig?.message || ''}
         onConfirm={modalConfig?.onConfirm}
         onCancel={() => setModalVisible(false)}
+        confirmText={t.ok}
+        cancelText={t.cancel}
         showCancel={modalConfig?.showCancel}
       />
 

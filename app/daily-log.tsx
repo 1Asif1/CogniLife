@@ -98,9 +98,9 @@ export default function DailyLogScreen() {
     cancel: 'Cancel',
     // Permission dialogs
     screenTimePermissionTitle: 'Screen Time Permission',
-    screenTimePermissionMessage: 'CogniLife needs access to your screen time data to provide personalized insights. Grant permission?',
+    screenTimePermissionMessage: 'App needs access to your screen time data to provide personalized insights. Grant permission?',
     healthConnectPermissionTitle: 'Health Connect Permission',
-    healthConnectPermissionMessage: 'CogniLife needs access to Health Connect to track your activity, sleep, and health metrics. Connect now?',
+    healthConnectPermissionMessage: 'App needs access to Health Connect to track your activity, sleep, and health metrics. Connect now?',
     // Tips/Error states
     failed: 'Failed',
     loadingFailed: 'Loading failed',
@@ -139,6 +139,7 @@ export default function DailyLogScreen() {
     onConfirm?: () => void;
     onCancel?: () => void;
     confirmText?: string;
+    cancelText?: string;
     showCancel?: boolean;
   }>({ title: '', message: '' });
 
@@ -276,6 +277,7 @@ export default function DailyLogScreen() {
         title: config.title,
         message: config.message,
         confirmText: config.confirmText || t.ok,
+        cancelText: config.cancelText || t.cancel,
         showCancel: true,
         onConfirm: () => { setModalVisible(false); resolve(true); },
         onCancel: () => { setModalVisible(false); resolve(false); },
@@ -710,7 +712,8 @@ export default function DailyLogScreen() {
         message={modalConfig.message}
         onConfirm={modalConfig.onConfirm}
         onCancel={modalConfig.onCancel || (() => setModalVisible(false))}
-        confirmText={modalConfig.confirmText}
+        confirmText={modalConfig.confirmText || t.ok}
+        cancelText={modalConfig.cancelText || t.cancel}
         showCancel={modalConfig.showCancel}
       />
     </View>

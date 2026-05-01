@@ -54,7 +54,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { error: authError } = await signIn(email, password);
-      if (authError) setError(authError.message);
+      if (authError) {
+               setError(authError.message);
+      } else {
+       router.replace('/(tabs)');  
+     }
     } catch (err: any) {
       setError('An unexpected error occurred');
     } finally {

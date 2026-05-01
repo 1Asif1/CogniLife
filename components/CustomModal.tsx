@@ -20,7 +20,7 @@ export function CustomModal({
   message,
   onConfirm,
   onCancel,
-  confirmText = 'OK', 
+  confirmText = 'OK',
   cancelText = 'Cancel',
   showCancel = true,
 }: CustomModalProps) {

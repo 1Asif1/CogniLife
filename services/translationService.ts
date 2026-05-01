@@ -1,14 +1,14 @@
 /**
  * translationService.ts
- * ─────────────────────
  * API-driven translation via MyMemory (free, no key needed).
  * Caches results in AsyncStorage to avoid redundant API calls.
- *
- * NEW FILE — zero changes to existing code.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Primary: Google Translate unofficial (free, no quota, supports all languages)
+// Fallback: MyMemory (free but low quota)
+const GOOGLE_TRANSLATE_URL = 'https://translate.googleapis.com/translate_a/single';
 const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
 const CACHE_PREFIX = 'translation_cache_';
 // Cache lives for 7 days — translations don't change
@@ -26,6 +26,50 @@ const MYMEMORY_JUNK_RESPONSES = [
 function isJunkResponse(text: string): boolean {
   const upper = text.toUpperCase();
   return MYMEMORY_JUNK_RESPONSES.some((junk) => upper.includes(junk));
+}
+
+/**
+ * Google Translate unofficial API (no key needed, high rate limit)
+ * Returns translated string or null on failure.
+ */
+async function translateViaGoogle(text: string, targetLang: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      client: 'gtx',
+      sl: 'en',
+      tl: targetLang,
+      dt: 't',
+      q: text,
+    });
+    const res = await fetch(`${GOOGLE_TRANSLATE_URL}?${params.toString()}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    // Response shape: [[[translatedText, originalText, ...],...], ...]
+    const translated: string = json?.[0]
+      ?.map((chunk: any[]) => chunk?.[0] ?? '')
+      .join('') ?? '';
+    if (translated && translated !== text) return translated;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * MyMemory fallback
+ */
+async function translateViaMyMemory(text: string, targetLang: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({ q: text, langpair: `en|${targetLang}` });
+    const res = await fetch(`${MYMEMORY_URL}?${params.toString()}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const translated: string = json?.responseData?.translatedText ?? text;
+    if (translated && translated !== text && !isJunkResponse(translated)) return translated;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export type SupportedLanguage = {
@@ -95,10 +139,7 @@ async function saveToCache(text: string, targetLang: string, translated: string)
 
 // ── Core translation function ─────────────────────────────────────────────────
 
-/**
- * Translate a single string.
- * Returns the original text on any error (graceful degradation).
- */
+
 export async function translateText(text: string, targetLang: string): Promise<string> {
   if (!text?.trim() || targetLang === 'en') return text;
 
@@ -106,37 +147,28 @@ export async function translateText(text: string, targetLang: string): Promise<s
   const cached = await getFromCache(text, targetLang);
   if (cached) return cached;
 
-  // 2. API call
-  try {
-    const params = new URLSearchParams({
-      q: text,
-      langpair: `en|${targetLang}`,
-    });
-    const res = await fetch(`${MYMEMORY_URL}?${params.toString()}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const translated: string = json?.responseData?.translatedText ?? text;
-    console.log('[translation]', { text, targetLang, result: translated });
-
-    // ── Guard: reject junk/quota-error responses from MyMemory ────────────
-    if (translated && translated !== text && !isJunkResponse(translated)) {
-      await saveToCache(text, targetLang, translated);
-      return translated;
-    }
-
-    // Junk or unchanged — fall through to return original
-    console.warn('[translationService] Junk/quota response, falling back to original:', translated);
-  } catch (err) {
-    console.warn('[translationService] API error:', err);
+  // 2. Try Google Translate first (primary — supports all 15 languages reliably)
+  const googleResult = await translateViaGoogle(text, targetLang);
+  if (googleResult) {
+    console.log('[translation] Google:', { text, targetLang, result: googleResult });
+    await saveToCache(text, targetLang, googleResult);
+    return googleResult;
   }
+
+  // 3. Fallback to MyMemory if Google failed
+  const myMemoryResult = await translateViaMyMemory(text, targetLang);
+  if (myMemoryResult) {
+    console.log('[translation] MyMemory fallback:', { text, targetLang, result: myMemoryResult });
+    await saveToCache(text, targetLang, myMemoryResult);
+    return myMemoryResult;
+  }
+
+  console.warn('[translationService] Both APIs failed, falling back to original for:', text);
 
   return text; // graceful fallback
 }
 
-/**
- * Translate multiple strings in parallel (batched with cache-first logic).
- * Returns a map of original → translated.
- */
+
 export async function translateBatch(
   texts: string[],
   targetLang: string,
@@ -157,6 +189,6 @@ export async function clearTranslationCache(): Promise<void> {
     const translationKeys = keys.filter((k) => k.startsWith(CACHE_PREFIX));
     if (translationKeys.length > 0) await AsyncStorage.multiRemove(translationKeys);
   } catch {
-    // Non-fatal
+    
   }
 }
