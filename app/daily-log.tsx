@@ -105,6 +105,7 @@ export default function DailyLogScreen() {
     failed: 'Failed',
     loadingFailed: 'Loading failed',
     retryLoading: 'Retry loading',
+    healthConnectFailed: 'Failed to connect to Health Connect. Please try again.',
   });
 
   // Auto-collected data
@@ -112,7 +113,7 @@ export default function DailyLogScreen() {
     screenTime: 0,
     lateNightUsage: 0,
     sleepHours: 0,
-    activityLevel: 'low',
+    activityLevel: 1,
     sittingTime: 0,
     inactivityPeriods: 0,
     steps: 0,
@@ -168,70 +169,95 @@ export default function DailyLogScreen() {
       loadData();
       return () => {};
     }, [user])
-  );      
+  );
+
   const loadData = async () => {
-  setLoadingAuto(true);
+    setLoadingAuto(true);
 
-  try {
-    const hasScreenTime = await screenTimeService.checkPermission();
-    console.log('[DailyLog] screenTime permission:', hasScreenTime);
-    setScreenTimePermission(hasScreenTime);
+    try {
+      const hasScreenTime = await screenTimeService.checkPermission();
+      console.log('[DailyLog] screenTime permission:', hasScreenTime);
+      setScreenTimePermission(hasScreenTime);
 
-    const hasHealth = hasHealthPermissions();
-    setHealthConnectPermission(hasHealth);
+      const hasHealth = hasHealthPermissions();
+      setHealthConnectPermission(hasHealth);
 
-    if (user) {
-      const existing = await getTodayLog(user.id);
-      if (existing) {
-        setExistingLog(true);
-        setMealsPerDay(existing.mealsPerDay);
-        setExistingCalories(existing.calorieIntake || 0);
-        setCalorieIntake('');
-        setFoodQuality(existing.foodQuality ?? 1);
-        // Only set non-screen-time auto data from DB as fallback
-        setAutoData(prev => ({
-          ...prev,
-          sleepHours: existing.sleepHours,
-          activityLevel: existing.activityLevel as 'low' | 'moderate' | 'high',
-          sittingTime: existing.sittingTime,
-          inactivityPeriods: existing.inactivityPeriods,
-          steps: existing.steps,
-        }));
+      if (user) {
+        const existing = await getTodayLog(user.id);
+        if (existing) {
+          setExistingLog(true);
+          setMealsPerDay(existing.mealsPerDay);
+          setExistingCalories(existing.calorieIntake || 0);
+          setCalorieIntake('');
+          setFoodQuality(existing.foodQuality ?? 1);
+
+          // Only set non-screen-time auto data from DB if it has valid health data
+          const hasValidHealthData = existing.steps > 0 || existing.sleepHours > 0 || (existing.activityLevel || 0) > 0;
+
+          if (hasValidHealthData) {
+            setAutoData(prev => ({
+              ...prev,
+              sleepHours: existing.sleepHours,
+              activityLevel: existing.activityLevel as number,
+              sittingTime: existing.sittingTime,
+              inactivityPeriods: existing.inactivityPeriods,
+              steps: existing.steps,
+            }));
+          } else {
+            console.log('[DailyLog] Existing log has no valid health data, skipping health data load');
+          }
+        }
       }
-    }
 
-    // Always fetch FRESH screen time from the native module
-    if (hasScreenTime) {
-      try {
-        const freshScreenData = await screenTimeService.getScreenTimeData();
-        console.log('[DailyLog] Fresh screen time data:', freshScreenData);
-        setAutoData(prev => ({
-          ...prev,
-          screenTime: freshScreenData.screenTime,
-          lateNightUsage: freshScreenData.lateNightUsage,
-        }));
-      } catch (error) {
-        console.error('[DailyLog] Failed to fetch fresh screen time:', error);
+      // Always fetch FRESH screen time from the native module
+      if (hasScreenTime) {
+        try {
+          const freshScreenData = await screenTimeService.getScreenTimeData();
+          console.log('[DailyLog] Fresh screen time data:', freshScreenData);
+          setAutoData(prev => ({
+            ...prev,
+            screenTime: freshScreenData.screenTime,
+            lateNightUsage: freshScreenData.lateNightUsage,
+          }));
+        } catch (error) {
+          console.error('[DailyLog] Failed to fetch fresh screen time:', error);
+        }
       }
+
+      // Collect fresh health data (sleep, steps, etc.) ONLY if Health Connect permissions are granted
+      if (hasHealth) {
+        try {
+          const data = await collectAutoData();
+          console.log('[DailyLog] collectAutoData result:', data);
+          // Only update health data if we have actual data
+          const hasActualHealthData = data.activityLevel > 0 || data.steps > 0 || data.sleepHours > 0;
+
+          if (hasActualHealthData) {
+            setAutoData(prev => ({
+              ...prev,
+              // Screen time already set from fresh native call above, don't override
+              sleepHours: data.sleepHours || prev.sleepHours,
+              activityLevel: data.activityLevel || prev.activityLevel,
+              sittingTime: data.sittingTime || prev.sittingTime,
+              inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
+              steps: data.steps || prev.steps,
+            }));
+          } else {
+            console.log('[DailyLog] No actual health data collected, preserving existing values');
+          }
+        } catch (error) {
+          console.error('[DailyLog] Health Connect auto collection failed:', error);
+        }
+      } else {
+        console.log('[DailyLog] Skipping Health Connect auto collection - no permissions');
+      }
+
+    } catch (error) {
+      console.error('Auto collection failed:', error);
+    } finally {
+      setLoadingAuto(false);
     }
-
-    // Collect fresh health data (sleep, steps, etc.)
-    const data = await collectAutoData();
-    setAutoData(prev => ({
-      ...prev,
-      sleepHours: data.sleepHours || prev.sleepHours,
-      activityLevel: data.activityLevel || prev.activityLevel,
-      sittingTime: data.sittingTime || prev.sittingTime,
-      inactivityPeriods: data.inactivityPeriods || prev.inactivityPeriods,
-      steps: data.steps || prev.steps,
-    }));
-
-  } catch (error) {
-    console.error('Auto collection failed:', error);
-  } finally {
-    setLoadingAuto(false);
-  }
-};
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -259,15 +285,19 @@ export default function DailyLogScreen() {
   };
 
   const handleRequestScreenTime = async () => {
-    // Use translated strings for the permission dialog
-    const granted = await screenTimeService.requestPermission((config) => 
-      showConfirm({
-        title: t.screenTimePermissionTitle,
-        message: t.screenTimePermissionMessage,
-        confirmText: t.ok,
-        cancelText: t.cancel,
-      })
-    );
+    // Show the in-app confirmation first so the user understands why the
+    // permission is needed. Only open the OS permission dialog if confirmed.
+    // This also avoids the race where the service fires synchronously and
+    // the returned Promise from showConfirm is never awaited.
+    const confirmed = await showConfirm({
+      title: t.screenTimePermissionTitle,
+      message: t.screenTimePermissionMessage,
+      confirmText: t.ok,
+      cancelText: t.cancel,
+    });
+    if (!confirmed) return;
+
+    const granted = await screenTimeService.requestPermission();
     setScreenTimePermission(granted);
     if (granted) {
       const data = await screenTimeService.getScreenTimeData();
@@ -280,36 +310,66 @@ export default function DailyLogScreen() {
   };
 
   const handleRequestHealthConnect = async () => {
-    await initializeHealthConnect();
-    // Use translated strings for the permission dialog
-    const granted = await requestHealthPermissions((config) =>
-      showConfirm({
+    console.log('[Health Connect] Connect button clicked');
+    try {
+      console.log('[Health Connect] Initializing Health Connect...');
+      await initializeHealthConnect();
+      console.log('[Health Connect] Checking permissions...');
+      // Show the in-app confirmation first, then open the OS permission flow.
+      const confirmed = await showConfirm({
         title: t.healthConnectPermissionTitle,
         message: t.healthConnectPermissionMessage,
         confirmText: t.ok,
         cancelText: t.cancel,
-      })
-    );
-    setHealthConnectPermission(granted);
-    if (granted) {
-      const data = await collectAutoData();
-      setAutoData(prev => ({
-        ...prev,
-        sleepHours: data.sleepHours,
-        activityLevel: data.activityLevel,
-        sittingTime: data.sittingTime,
-        inactivityPeriods: data.inactivityPeriods,
-        steps: data.steps,
-      }));
+      });
+      if (!confirmed) return;
+
+      const granted = await requestHealthPermissions();
+      setHealthConnectPermission(granted);
+      if (granted) {
+        console.log('[Health Connect] Permissions granted, collecting auto data...');
+        const data = await collectAutoData();
+        console.log('[Health Connect] Auto data collected:', data);
+        setAutoData(prev => ({
+          ...prev,
+          sleepHours: data.sleepHours,
+          activityLevel: data.activityLevel,
+          sittingTime: data.sittingTime,
+          inactivityPeriods: data.inactivityPeriods,
+          steps: data.steps,
+        }));
+      }
+    } catch (error) {
+      console.error('[Health Connect] Error:', error);
+      setModalConfig({
+        title: t.errorTitle,
+        message: t.healthConnectFailed,
+        onConfirm: () => setModalVisible(false),
+        confirmText: t.ok,
+        showCancel: false,
+      });
+      setModalVisible(true);
     }
   };
 
-  const getActivityLabel = (level: string) => {
-    switch (level) {
-      case 'high': return t.activityHigh;
-      case 'moderate': return t.activityModerate;
-      default: return t.activityLow;
-    }
+  const getActivityColor = (level: number) => {
+    if (level >= 4) return theme.colors.success;
+    if (level === 3) return theme.colors.warning;
+    return theme.colors.danger;
+  };
+
+  const getActivityIcon = (level: number): any => {
+    if (level >= 4) return 'flash';
+    if (level === 3) return 'walk';
+    return 'bed';
+  };
+
+  // Single unified getActivityLabel — uses translated strings for high/moderate/low
+  // and falls back to named labels for granular 1-5 scale values
+  const getActivityLabel = (level: number): string => {
+    if (level >= 4) return t.activityHigh;
+    if (level === 3) return t.activityModerate;
+    return t.activityLow;
   };
 
   const handleSubmit = async () => {
@@ -357,26 +417,10 @@ export default function DailyLogScreen() {
     }
   };
 
-  const getActivityColor = (level: string) => {
-    switch (level) {
-      case 'high': return theme.colors.success;
-      case 'moderate': return theme.colors.warning;
-      default: return theme.colors.danger;
-    }
-  };
-
-  const getActivityIcon = (level: string): any => {
-    switch (level) {
-      case 'high': return 'flash';
-      case 'moderate': return 'walk';
-      default: return 'bed';
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <ScrollView 
-        bounces={false} 
+      <ScrollView
+        bounces={false}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -452,10 +496,8 @@ export default function DailyLogScreen() {
             {screenTimePermission && (
               <View style={styles.dataMetrics}>
                 <View style={styles.metric}>
-
                   <Text style={styles.metricValue}>{autoData.screenTime.toFixed(1)}h</Text>
                   <Text style={styles.metricLabel}>{t.todayScreenTime}</Text>
-
                 </View>
                 <View style={styles.metricDivider} />
                 <View style={styles.metric}>

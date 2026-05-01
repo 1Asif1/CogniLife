@@ -36,7 +36,7 @@ class DailyLogCreate(BaseModel):
     screen_time: Optional[float] = 0
     late_night_usage: Optional[float] = 0
     sleep_hours: Optional[float] = 0
-    activity_level: Optional[str] = "low"
+    activity_level: Optional[int] = 1
     sitting_time: Optional[float] = 0
     inactivity_periods: Optional[int] = 0
     steps: Optional[int] = 0
@@ -53,7 +53,7 @@ class DailyLogResponse(BaseModel):
     screen_time: Optional[float] = 0
     late_night_usage: Optional[float] = 0
     sleep_hours: Optional[float] = 0
-    activity_level: Optional[str] = "low"
+    activity_level: Optional[int] = 1
     sitting_time: Optional[float] = 0
     inactivity_periods: Optional[int] = 0
     steps: Optional[int] = 0

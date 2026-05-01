@@ -12,7 +12,7 @@ export interface AutoCollectedData {
   screenTime: number;
   lateNightUsage: number;
   sleepHours: number;
-  activityLevel: 'low' | 'moderate' | 'high';
+  activityLevel: number;  // 1-5 scale
   sittingTime: number;
   inactivityPeriods: number;
   steps: number;
@@ -22,7 +22,7 @@ export interface DailyLogEntry {
   screenTime: number;
   lateNightUsage: number;
   sleepHours: number;
-  activityLevel: string;
+  activityLevel: number;  // 1-5 scale
   sittingTime: number;
   inactivityPeriods: number;
   steps: number;
@@ -38,7 +38,7 @@ export async function collectAutoData(): Promise<AutoCollectedData> {
   let screenData: ScreenTimeData = { screenTime: 0, lateNightUsage: 0 };
   let healthData: HealthData = {
     sleepHours: 0,
-    activityLevel: 'low',
+    activityLevel: 1,
     sittingTime: 0,
     inactivityPeriods: 0,
     steps: 0,
@@ -173,7 +173,7 @@ export async function getTodayLog(userId: string): Promise<DailyLogEntry | null>
       screenTime: data.screen_time || 0,
       lateNightUsage: data.late_night_usage || 0,
       sleepHours: data.sleep_hours || 0,
-      activityLevel: data.activity_level || 'low',
+      activityLevel: data.activity_level || 1,
       sittingTime: data.sitting_time || 0,
       inactivityPeriods: data.inactivity_periods || 0,
       steps: data.steps || 0,

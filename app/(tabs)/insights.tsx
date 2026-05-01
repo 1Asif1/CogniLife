@@ -1,3 +1,4 @@
+import { useTranslated } from '@/context/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,8 +7,6 @@ import { Card } from '../../components/Card';
 import { GradientBackground } from '../../components/GradientBackground';
 import { theme } from '../../constants/theme';
 import { supabase } from "../../lib/supabase";
-
-
 import { calculateStreak } from "../../services/streaks";
 
 const screenWidth = Dimensions.get('window').width;
@@ -35,6 +34,51 @@ const MetricCard = ({ title, value, status, icon, color }: any) => (
 export default function InsightsScreen() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const t = useTranslated({
+  header: 'Behavior Insights',
+  subHeader: 'Weekly trends and patterns',
+  weeklyVibe: "This Week's Vibe",
+  streakTitle: 'Activity Streak',
+  sleepTitle: 'Sleep Pattern',
+  screenTitle: 'Screen Time',
+  activityTitle: 'Activity Trend',
+  sittingTitle: 'Sitting Time',
+  keepLogging: 'Keep logging daily to maintain your streak',
+  days: 'days',
+  healthFlags: 'Health Flags',
+
+  // ADD THESE NEW KEYS:
+  loadingProgress: 'Loading your progress...',
+  noInsightsTitle: 'No Insights Yet',
+  noInsightsMessage: 'Start logging your daily sleep, screen time, activity and sitting habits to unlock personalized health insights.',
+
+  // Humorous Sleep comments
+  sleepLow: "Your pillow misses you.",
+  sleepComplicated: "You and sleep are in a complicated relationship.",
+  sleepStrong: "Sleep game strong this week.",
+
+  // Screen Time comments
+  screenHigh: "Your phone knows you better than people do.",
+  screenMedium: "Digital detox is sending friend requests.",
+  screenLow: "Healthy screen discipline detected.",
+
+  // Steps/Activity comments
+  stepsLow: "Your shoes are feeling unemployed.",
+  stepsMedium: "Movement exists. Commitment pending.",
+  stepsHigh: "Your legs deserve respect.",
+
+  // Sitting comments
+  sittingHigh: "Chairperson of the sedentary committee.",
+  sittingMedium: "Too much desk diplomacy.",
+  sittingLow: "Body says thanks for moving.",
+
+  // Vibe comments
+  vibeBalanced: "A balanced week overall.",
+  vibeScreenWon: "Your body tried, your screen won.",
+  vibeDisciplined: "A surprisingly disciplined week. Respect.",
+  vibeSponsored: "This week was sponsored by chairs."
+});
+  
   const fetchLogs = async () => {
     try {
       console.log("FETCHING FROM SUPABASE...");
@@ -83,35 +127,34 @@ export default function InsightsScreen() {
 
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading your progress...</Text>
-      </View>
-    );
-  }
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Text style={styles.loadingText}>{t.loadingProgress}</Text>
+    </View>
+  );
+}
   if (logs.length === 0) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 30 }}>
-        <Ionicons name="analytics-outline" size={70} color="#7C3AED" />
-        <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 20, color: "#1F2937" }}>
-          No Insights Yet
-        </Text>
-        <Text
-          style={{
-            fontSize: 14,
-            color: "#6B7280",
-            textAlign: "center",
-            marginTop: 10,
-            lineHeight: 22,
-          }}
-        >
-          Start logging your daily sleep, screen time, activity and sitting habits
-          to unlock personalized health insights.
-        </Text>
-      </View>
-    );
-  }
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 30 }}>
+      <Ionicons name="analytics-outline" size={70} color="#7C3AED" />
+      <Text style={{ fontSize: 22, fontWeight: "700", marginTop: 20, color: "#1F2937" }}>
+        {t.noInsightsTitle}
+      </Text>
+      <Text
+        style={{
+          fontSize: 14,
+          color: "#6B7280",
+          textAlign: "center",
+          marginTop: 10,
+          lineHeight: 22,
+        }}
+      >
+        {t.noInsightsMessage}
+      </Text>
+    </View>
+  );
+}
 
   // 🔥 PROCESS DATA FOR CHARTS
 
@@ -143,31 +186,31 @@ export default function InsightsScreen() {
   ).toFixed(1);
   const sleepComment =
     Number(avgSleep) < 5
-      ? "Your pillow misses you."
+      ? t.sleepLow
       : Number(avgSleep) < 7
-        ? "You and sleep are in a complicated relationship."
-        : "Sleep game strong this week.";
+        ? t.sleepComplicated
+        : t.sleepStrong;
 
   const screenComment =
     Number(avgScreen) > 8
-      ? "Your phone knows you better than people do."
+      ? t.screenHigh
       : Number(avgScreen) > 5
-        ? "Digital detox is sending friend requests."
-        : "Healthy screen discipline detected.";
+        ? t.screenMedium
+        : t.screenLow;
 
   const stepsComment =
     Number(avgSteps) < 3000
-      ? "Your shoes are feeling unemployed."
+      ? t.stepsLow
       : Number(avgSteps) < 7000
-        ? "Movement exists. Commitment pending."
-        : "Your legs deserve respect.";
+        ? t.stepsMedium
+        : t.stepsHigh;
 
   const sittingComment =
     Number(avgSitting) > 10
-      ? "Chairperson of the sedentary committee."
+      ? t.sittingHigh
       : Number(avgSitting) > 6
-        ? "Too much desk diplomacy."
-        : "Body says thanks for moving.";
+        ? t.sittingMedium
+        : t.sittingLow;
   let weeklyVibe = "A balanced week overall.";
 
   if (Number(avgSleep) < 5 && Number(avgScreen) > 7) {

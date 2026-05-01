@@ -109,7 +109,7 @@ class SupabaseClient:
                 "screen_time": log_data.get("screen_time", 0),
                 "late_night_usage": int(log_data.get("late_night_usage", 0)),
                 "sleep_hours": log_data.get("sleep_hours", 0),
-                "activity_level": log_data.get("activity_level", "low"),
+                "activity_level": int(log_data.get("activity_level", 1)),
                 "sitting_time": log_data.get("sitting_time", 0),
                 "inactivity_periods": int(log_data.get("inactivity_periods", 0)),
                 "steps": int(log_data.get("steps", 0)),

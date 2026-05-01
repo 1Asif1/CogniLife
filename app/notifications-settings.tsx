@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -28,15 +28,52 @@ export default function NotificationsSettingsScreen() {
     goal_alerts_sub: 'Notifications when you hit or miss your goals',
     device_sync_title: 'Device Sync',
     device_sync_sub: 'Alerts when your wearable devices sync data',
-    sectionTitle: 'Notification Preferences'
+    sectionTitle: 'Notification Preferences',
   });
 
-  const notificationSettings = [
-    { id: 'daily_reminder', title: t.daily_reminder_title, subtitle: t.daily_reminder_sub, icon: 'calendar-outline' as const },
-    { id: 'health_insights', title: t.health_insights_title, subtitle: t.health_insights_sub, icon: 'analytics-outline' as const },
-    { id: 'goal_alerts', title: t.goal_alerts_title, subtitle: t.goal_alerts_sub, icon: 'trophy-outline' as const },
-    { id: 'device_sync', title: t.device_sync_title, subtitle: t.device_sync_sub, icon: 'sync-outline' as const },
-  ];
+  // Memoize the settings list so it only rebuilds when the translated object
+  // has fully settled. Without this, intermediate async renders of useTranslated
+  // can produce a mix of old + new strings that appear "appended" in the UI.
+  const notificationSettings = useMemo(
+    () => [
+      {
+        id: 'daily_reminder',
+        title: t.daily_reminder_title,
+        subtitle: t.daily_reminder_sub,
+        icon: 'calendar-outline' as const,
+      },
+      {
+        id: 'health_insights',
+        title: t.health_insights_title,
+        subtitle: t.health_insights_sub,
+        icon: 'analytics-outline' as const,
+      },
+      {
+        id: 'goal_alerts',
+        title: t.goal_alerts_title,
+        subtitle: t.goal_alerts_sub,
+        icon: 'trophy-outline' as const,
+      },
+      {
+        id: 'device_sync',
+        title: t.device_sync_title,
+        subtitle: t.device_sync_sub,
+        icon: 'sync-outline' as const,
+      },
+    ],
+    // Depend on every translated string individually so the list rebuilds
+    // atomically once all keys have been translated (not piecemeal).
+    [
+      t.daily_reminder_title,
+      t.daily_reminder_sub,
+      t.health_insights_title,
+      t.health_insights_sub,
+      t.goal_alerts_title,
+      t.goal_alerts_sub,
+      t.device_sync_title,
+      t.device_sync_sub,
+    ]
+  );
 
   return (
     <ScrollView style={styles.container}>
@@ -52,7 +89,11 @@ export default function NotificationsSettingsScreen() {
         <Text style={styles.sectionTitle}>{t.sectionTitle}</Text>
         <Card style={styles.card}>
           {notificationSettings.map((item, index) => (
-            <NotificationToggle key={item.id} item={item} isLast={index === notificationSettings.length - 1} />
+            <NotificationToggle
+              key={item.id}
+              item={item}
+              isLast={index === notificationSettings.length - 1}
+            />
           ))}
         </Card>
       </View>
@@ -71,7 +112,11 @@ const NotificationToggle = ({ item, isLast }: any) => {
         <Text style={styles.toggleTitle}>{item.title}</Text>
         <Text style={styles.toggleSub}>{item.subtitle}</Text>
       </View>
-      <Switch value={enabled} onValueChange={setEnabled} trackColor={{ true: theme.colors.primary }} />
+      <Switch
+        value={enabled}
+        onValueChange={setEnabled}
+        trackColor={{ true: theme.colors.primary }}
+      />
     </View>
   );
 };
@@ -82,12 +127,32 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: '#FFF', marginTop: 16 },
   subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   content: { padding: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: theme.colors.text, marginBottom: 12 },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 12,
+  },
   card: { padding: 16 },
   toggleItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  iconWrap: { width: 40, height: 40, borderRadius: 10, backgroundColor: theme.colors.primary + '15', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  borderBottom: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: theme.colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   textWrap: { flex: 1 },
   toggleTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
-  toggleSub: { fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 }
+  toggleSub: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
 });

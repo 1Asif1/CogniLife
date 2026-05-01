@@ -369,10 +369,22 @@ class MLService:
         Map Supabase daily_logs + user profile columns to the raw feature
         names expected by feature_engineering.py.
         """
-        # activity_level: 'low'->0, 'moderate'->1, 'high'->2
-        act_map = {"low": 0, "moderate": 1, "high": 2}
-        act_raw = log_data.get("activity_level", "low")
-        activity = act_map.get(str(act_raw).lower(), 0)
+        # activity_level: Now integer 1-5 scale, map to model's 0-2 scale
+        # 1-2 (Sedentary/Low) -> 0 (low)
+        # 3 (Moderate) -> 1 (moderate)
+        # 4-5 (Active/Very Active) -> 2 (high)
+        act_raw = log_data.get("activity_level", 1)
+        if isinstance(act_raw, (int, float)):
+            if act_raw <= 2:
+                activity = 0  # low
+            elif act_raw == 3:
+                activity = 1  # moderate
+            else:
+                activity = 2  # high
+        else:
+            # Fallback for string values (backward compatibility)
+            act_map = {"low": 0, "moderate": 1, "high": 2}
+            activity = act_map.get(str(act_raw).lower(), 0)
 
         meals = log_data.get("meals_per_day", 3)
         cal = log_data.get("calorie_intake", 1800)

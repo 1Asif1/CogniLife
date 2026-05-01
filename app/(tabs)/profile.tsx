@@ -23,6 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage, useTranslated } from '../../context/LanguageContext';
 import { bluetoothDeviceService } from '../../services/bluetoothDeviceService';
 import { getStreakData } from '../../services/dailyLogService';
+import { getHealthConnectStatus, openHealthConnectSettings } from '../../services/healthConnectService';
 
 interface BluetoothDevice {
   id: string;
@@ -60,6 +61,15 @@ export default function ProfileScreen() {
     message: string;
     onConfirm?: () => void;
     showCancel?: boolean;
+  } | null>(null);
+
+  // Health Connect state
+  const [healthConnectStatus, setHealthConnectStatus] = useState<{
+    available: boolean;
+    installed: boolean;
+    hasPermission: boolean;
+    deviceName: string;
+    lastSync: string | null;
   } | null>(null);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -102,7 +112,6 @@ export default function ProfileScreen() {
     fullName: 'Full Name',
     heightLabel: 'Height',
     weightLabel: 'Weight',
-    // ── NEW translation keys ──
     deviceConnected: 'Connected',
     deviceLastSync: 'Last sync: Just now',
     deviceNoConnectHint: "Tap 'Add New Device' to connect",
@@ -128,6 +137,8 @@ export default function ProfileScreen() {
       if (userProfile?.id) {
         getStreakData(userProfile.id).then(setStreakData);
       }
+      // Fetch Health Connect status
+      getHealthConnectStatus().then(setHealthConnectStatus);
     }, [userProfile?.id])
   );
 
@@ -148,7 +159,7 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
-      setEditError(t.nameRequired); // FIXED: was hardcoded 'Name is required'
+      setEditError(t.nameRequired);
       return;
     }
     setEditLoading(true);
@@ -172,7 +183,7 @@ export default function ProfileScreen() {
     const deviceName = device || 'Apple Watch';
     setModalConfig({
       title: t.disconnect,
-      message: `${t.modalDisconnectMsg} ${deviceName}?`, // FIXED: was hardcoded template string
+      message: `${t.modalDisconnectMsg} ${deviceName}?`,
       onConfirm: async () => {
         setModalVisible(false);
         setDevice(null);
@@ -198,8 +209,8 @@ export default function ProfileScreen() {
         setIsScanning(false);
         if (foundDevices.length > 0) {
           setModalConfig({
-            title: t.modalDeviceFoundTitle, // FIXED: was hardcoded 'Device Found'
-            message: `${t.modalFound} ${foundDevices.length} ${t.modalDeviceFoundMsg} ${foundDevices[0].name}?`, // FIXED: was hardcoded template string
+            title: t.modalDeviceFoundTitle,
+            message: `${t.modalFound} ${foundDevices.length} ${t.modalDeviceFoundMsg} ${foundDevices[0].name}?`,
             onConfirm: async () => {
               setModalVisible(false);
               const connected = await bluetoothDeviceService.connectToDevice(foundDevices[0].id);
@@ -216,8 +227,8 @@ export default function ProfileScreen() {
         } else {
           setMessage('No devices found');
           setModalConfig({
-            title: t.modalNoDevicesTitle, // FIXED: was hardcoded 'No Devices'
-            message: t.modalNoDevicesMsg, // FIXED: was hardcoded long string
+            title: t.modalNoDevicesTitle,
+            message: t.modalNoDevicesMsg,
             showCancel: false,
           });
           setModalVisible(true);
@@ -227,8 +238,20 @@ export default function ProfileScreen() {
       setIsScanning(false);
       setMessage('Scan failed');
       setModalConfig({
-        title: t.modalScanErrorTitle, // FIXED: was hardcoded 'Error'
-        message: t.modalScanErrorMsg, // FIXED: was hardcoded long string
+        title: t.modalScanErrorTitle,
+        message: t.modalScanErrorMsg,
+        showCancel: false,
+      });
+      setModalVisible(true);
+    }
+  };
+
+  const handleOpenHealthConnect = async () => {
+    const opened = await openHealthConnectSettings();
+    if (!opened) {
+      setModalConfig({
+        title: 'Error',
+        message: 'Could not open Health Connect. Please ensure it is installed on your device.',
         showCancel: false,
       });
       setModalVisible(true);
@@ -313,6 +336,8 @@ export default function ProfileScreen() {
 
         <Card style={styles.sectionCard}>
           <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>{t.deviceTitle}</Text>
+
+          {/* Bluetooth Device */}
           {device ? (
             <View style={styles.deviceRow}>
               <View style={styles.deviceIcon}>
@@ -320,8 +345,8 @@ export default function ProfileScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.deviceTitle}>{device}</Text>
-                <Text style={styles.deviceSub}>{t.deviceConnected}</Text>{/* FIXED: was hardcoded 'Connected' */}
-                <Text style={styles.deviceSync}>{t.deviceLastSync}</Text>{/* FIXED: was hardcoded 'Last sync: Just now' */}
+                <Text style={styles.deviceSub}>{t.deviceConnected}</Text>
+                <Text style={styles.deviceSync}>{t.deviceLastSync}</Text>
               </View>
               <TouchableOpacity style={styles.disconnectBtn} onPress={handleDisconnect}>
                 <Text style={styles.disconnectBtnText}>{t.disconnect}</Text>
@@ -334,10 +359,42 @@ export default function ProfileScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.deviceTitle}>{t.noDevice}</Text>
-                <Text style={styles.deviceSub}>{t.deviceNoConnectHint}</Text>{/* FIXED: was hardcoded string */}
+                <Text style={styles.deviceSub}>{t.deviceNoConnectHint}</Text>
               </View>
             </View>
           )}
+
+          {/* Health Connect Device */}
+          {healthConnectStatus && (
+            <View style={[styles.deviceRow, { marginTop: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 16 }]}>
+              <View style={[styles.deviceIcon, { backgroundColor: '#DBEAFE' }]}>
+                <Ionicons name="fitness-outline" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deviceTitle}>{healthConnectStatus.deviceName}</Text>
+                <Text style={styles.deviceSub}>
+                  {healthConnectStatus.installed
+                    ? (healthConnectStatus.hasPermission ? t.deviceConnected : 'Not authorized')
+                    : 'Not installed'
+                  }
+                </Text>
+                {healthConnectStatus.lastSync && (
+                  <Text style={styles.deviceSync}>
+                    Last sync: {new Date(healthConnectStatus.lastSync).toLocaleTimeString()}
+                  </Text>
+                )}
+              </View>
+              {healthConnectStatus.installed && (
+                <TouchableOpacity
+                  style={[styles.disconnectBtn, { backgroundColor: theme.colors.primary + '15' }]}
+                  onPress={handleOpenHealthConnect}
+                >
+                  <Text style={[styles.disconnectBtnText, { color: theme.colors.primary }]}>Open</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <TouchableOpacity style={styles.addDeviceBtn} onPress={handleAddDevice}>
             <Text style={styles.addDeviceText}>{t.addDevice}</Text>
           </TouchableOpacity>
@@ -372,7 +429,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>{t.logout}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>{t.appVersion}</Text>{/* FIXED: was hardcoded 'CogniLife v1.0.0' */}
+        <Text style={styles.version}>{t.appVersion}</Text>
       </View>
 
       <CustomModal
@@ -384,7 +441,7 @@ export default function ProfileScreen() {
         showCancel={modalConfig?.showCancel}
       />
 
-      {/* ── Edit Profile modal ── */}
+      {/* Edit Profile modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -414,20 +471,20 @@ export default function ProfileScreen() {
 
                 <Input
                   label={t.fullName}
-                  placeholder={t.namePlaceholder} // FIXED: was hardcoded 'Enter your name'
+                  placeholder={t.namePlaceholder}
                   value={editName}
                   onChangeText={(text) => { setEditName(text); setEditError(''); }}
                 />
                 <Input
                   label={t.heightLabel}
-                  placeholder={t.heightPlaceholder} // FIXED: was hardcoded 'e.g. 175'
+                  placeholder={t.heightPlaceholder}
                   keyboardType="numeric"
                   value={editHeight}
                   onChangeText={(text) => { setEditHeight(text); setEditError(''); }}
                 />
                 <Input
                   label={t.weightLabel}
-                  placeholder={t.weightPlaceholder} // FIXED: was hardcoded 'e.g. 70'
+                  placeholder={t.weightPlaceholder}
                   keyboardType="numeric"
                   value={editWeight}
                   onChangeText={(text) => { setEditWeight(text); setEditError(''); }}

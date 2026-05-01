@@ -7,15 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { GradientBackground } from "../../components/GradientBackground";
 import { theme } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
-
+import { useTranslated } from '../../context/LanguageContext';
 // Your machine's LAN IP — the backend must be running on 0.0.0.0:8001
 // so it's reachable from both emulators and physical devices via this IP.
 const LAN_IP = "192.168.29.161";
@@ -107,12 +106,34 @@ const RecommendationCard = ({
 
 export default function TipsScreen() {
   const { user, userProfile } = useAuth();
+
+  const t = useTranslated({
+    header: 'Recommendations',
+    subHeader: 'AI-powered personalized suggestions',
+    planTitle: 'Your Action Plan',
+    loadingPlan: 'Loading your personalized plan...',
+    identifiedAreas: "Based on your health data, we've identified {count} key areas for improvement.",
+    logDataHint: 'Log your health data to get personalized recommendations.',
+    critical: 'Critical',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+    noRecs: 'No recommendations yet',
+    retry: 'Retry',
+    signInFirst: 'Sign in first',
+    generatingRecs: 'Generating recommendations...',
+    noRecsMessage: 'Complete your daily logs to get AI-powered health recommendations tailored to your lifestyle.',
+    goalAdded: '✓ "{title}" added to your goals!',
+    startGoal: 'Start Goal'
+  });
+
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingGoal, setStartingGoal] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
+   
+  
   // Re-fetch every time the Tips tab is focused (tapped)
   useFocusEffect(
     useCallback(() => {
@@ -198,7 +219,7 @@ export default function TipsScreen() {
         throw new Error("Failed to start goal");
       }
 
-      setSuccessMessage(`✓ "${goalTitle}" added to your goals!`);
+      setSuccessMessage(t.goalAdded.replace('{title}', goalTitle));
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -211,23 +232,21 @@ export default function TipsScreen() {
   };
 
   if (!user) {
-    return (
-      <ScrollView style={styles.container} bounces={false}>
-        <GradientBackground style={styles.headerGradient}>
-          <Text style={styles.title}>Sign in first</Text>
-        </GradientBackground>
-      </ScrollView>
-    );
-  }
+  return (
+    <ScrollView style={styles.container} bounces={false}>
+      <GradientBackground style={styles.headerGradient}>
+        <Text style={styles.title}>{t.signInFirst}</Text>
+      </GradientBackground>
+    </ScrollView>
+  );
+}
 
   return (
     <ScrollView style={styles.container} bounces={false}>
       <View style={styles.topSection}>
         <GradientBackground style={styles.headerGradient}>
-          <Text style={styles.title}>Recommendations</Text>
-          <Text style={styles.subtitle}>
-            AI-powered personalized suggestions
-          </Text>
+          <Text style={styles.title}>{t.header}</Text>
+          <Text style={styles.subtitle}>{t.subHeader}</Text>
         </GradientBackground>
 
         <View style={styles.actionPlanContainer}>
@@ -237,17 +256,16 @@ export default function TipsScreen() {
                 <Ionicons
                   name="bulb-outline"
                   size={24}
-                  color={theme.colors.primary}
-                />
+                  color={theme.colors.primary}/>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.actionPlanTitle}>Your Action Plan</Text>
+                <Text style={styles.actionPlanTitle}>{t.planTitle}</Text>
                 <Text style={styles.actionPlanDesc}>
                   {loading
-                    ? "Loading your personalized plan..."
+                    ? t.loadingPlan
                     : recommendations.length > 0
-                      ? `Based on your health data, we've identified ${recommendations.length} key areas for improvement. Start with high-priority items for maximum impact.`
-                      : "Log your health data to get personalized recommendations."}
+                      ? t.identifiedAreas.replace('{count}', recommendations.length.toString())
+                      : t.logDataHint}
                 </Text>
               </View>
             </View>
@@ -262,10 +280,10 @@ export default function TipsScreen() {
           style={styles.filtersContainer}
           contentContainerStyle={{ paddingHorizontal: 24 }}
         >
-          <FilterTag label="Critical" color={theme.colors.danger} />
-          <FilterTag label="High" color={theme.colors.warning} />
-          <FilterTag label="Medium" color="#FACC15" />
-          <FilterTag label="Low" color={theme.colors.secondary} />
+          <FilterTag label={t.critical} color={theme.colors.danger} />
+          <FilterTag label={t.high} color={theme.colors.warning} />
+          <FilterTag label={t.medium} color="#FACC15" />
+          <FilterTag label={t.low} color={theme.colors.secondary} />
         </ScrollView>
 
         <View style={styles.recList}>
@@ -273,14 +291,14 @@ export default function TipsScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text style={styles.loadingText}>
-                Generating recommendations...
+                {t.generatingRecs}
               </Text>
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
               <Button
-                title="Retry"
+                title={t.retry}
                 onPress={fetchRecommendations}
                 style={{ marginTop: 12 }}
               />
@@ -307,14 +325,14 @@ export default function TipsScreen() {
                 />
               ))}
             </>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No recommendations yet</Text>
-              <Text style={styles.emptySubtext}>
-                Log your daily health data to get personalized recommendations
-              </Text>
-            </View>
-          )}
+          ) :(
+             <View style={styles.emptyContainer}>
+              < Text style={styles.emptyText}>{t.noRecs}</Text>
+              <Text style={styles.emptyDesc}>
+               {t.noRecsMessage}
+            </Text>
+          </View>
+        )}
         </View>
       </View>
     </ScrollView>
@@ -460,6 +478,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: 8,
   },
+  emptyDesc: {
+  fontSize: 14,
+  color: '#6B7280',
+  textAlign: 'center',
+  marginTop: 8,
+  lineHeight: 20,
+  paddingHorizontal: 20,
+  },
   emptySubtext: {
     fontSize: 14,
     color: theme.colors.textSecondary,
@@ -479,5 +505,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#065F46",
+
+
   },
 });
