@@ -1,0 +1,6 @@
+{
+  "name": "my-module",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "expo": "expo-module.config.json"
+}

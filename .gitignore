@@ -47,3 +47,8 @@ app-example
 venv/
 __pycache__/
 .env
+
+# Android
+android/build/
+modules/**/android/build/
+.gradle/

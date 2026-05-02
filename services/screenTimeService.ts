@@ -13,8 +13,11 @@ const getScreenTimeModule = (): any | null => {
     // Dynamic require keeps the module out of the Web/iOS bundle graph
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { requireNativeModule } = require('expo-modules-core');
-    return requireNativeModule('ScreenTimeModule');
-  } catch {
+    const mod = requireNativeModule('ScreenTimeModule');
+    console.log('[ScreenTimeService] getScreenTimeModule loaded:', !!mod);
+    return mod;
+  } catch (e) {
+    console.error('[ScreenTimeService] Failed to load ScreenTimeModule:', e);
     return null;
   }
 };
@@ -95,7 +98,13 @@ class ScreenTimeService {
     if (!confirmed) return false;
 
     try {
-      // Dynamically import Linking only on Android to keep the web bundle clean
+      const mod = getScreenTimeModule();
+      if (mod && mod.openSettings) {
+        await mod.openSettings();
+        return true;
+      }
+      
+      // Fallback to general settings
       const { Linking } = require('react-native');
       await Linking.openSettings();
       return true;
