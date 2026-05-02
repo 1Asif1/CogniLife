@@ -49,12 +49,20 @@ export interface HealthConnectLabels {
  * uncomment the real implementation and remove the simulated methods.
  */
 
-import {
-  getSdkStatus,
-  initialize,
-  readRecords,
-  SdkAvailabilityStatus
-} from 'react-native-health-connect';
+// Try to import react-native-health-connect, fallback to mock for Expo Go
+let HealthConnect: any = null;
+let SdkAvailabilityStatus: any = null;
+let isNativeModuleAvailable = false;
+
+try {
+  const healthConnectModule = require('react-native-health-connect');
+  HealthConnect = healthConnectModule;
+  SdkAvailabilityStatus = healthConnectModule.SdkAvailabilityStatus;
+  isNativeModuleAvailable = true;
+} catch (error) {
+  console.log('react-native-health-connect not available, using mock implementation');
+  isNativeModuleAvailable = false;
+}
 
 let isInitialized = false;
 let hasPermission = false;
@@ -65,8 +73,15 @@ let hasPermission = false;
 export async function initializeHealthConnect(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
 
+  // Use mock implementation if native module is not available
+  if (!isNativeModuleAvailable) {
+    console.log('Using mock Health Connect implementation');
+    isInitialized = true;
+    return true;
+  }
+
   try {
-    const isAvailable = await getSdkStatus();
+    const isAvailable = await HealthConnect.getSdkStatus();
     if (isAvailable !== SdkAvailabilityStatus.SDK_AVAILABLE) {
       console.log('Health Connect is not available on this device');
       // Handle case where Health Connect is not installed
@@ -75,7 +90,7 @@ export async function initializeHealthConnect(): Promise<boolean> {
       }
       return false;
     }
-    await initialize();
+    await HealthConnect.initialize();
     isInitialized = true;
     return true;
   } catch (error) {
@@ -113,6 +128,13 @@ export async function requestHealthPermissions(
     return false;
   }
 
+  // Use mock implementation if native module is not available
+  if (!isNativeModuleAvailable) {
+    console.log('Using mock Health Connect permission request');
+    hasPermission = true;
+    return true;
+  }
+
   try {
     console.log('[Health Connect] Checking initialization status');
     if (!isInitialized) {
@@ -141,7 +163,7 @@ export async function requestHealthPermissions(
       startOfYesterday.setDate(now.getDate() - 1);
       startOfYesterday.setHours(0, 0, 0, 0);
 
-      const result = await readRecords('Steps', {
+      const result = await HealthConnect.readRecords('Steps', {
         timeRangeFilter: {
           operator: 'between',
           startTime: startOfYesterday.toISOString(),
@@ -174,6 +196,12 @@ export async function requestHealthPermissions(
  * Get sleep hours from last 24 hours
  */
 async function getSleepHours(): Promise<number> {
+  // Use mock implementation if native module is not available
+  if (!isNativeModuleAvailable) {
+    console.log('Using mock Health Connect sleep data');
+    return 7.5; // Mock 7.5 hours of sleep
+  }
+
   if (!hasPermission) {
     console.log('Health Connect permission not granted for sleep data');
     return 0;
@@ -185,7 +213,7 @@ async function getSleepHours(): Promise<number> {
     startOfYesterday.setDate(now.getDate() - 1);
     startOfYesterday.setHours(0, 0, 0, 0); // Start of yesterday
 
-    const result = await readRecords('SleepSession', {
+    const result = await HealthConnect.readRecords('SleepSession', {
       timeRangeFilter: {
         operator: 'between',
         startTime: startOfYesterday.toISOString(),
@@ -232,6 +260,12 @@ async function getSleepHours(): Promise<number> {
  * Get step count for last 24 hours
  */
 async function getStepCount(): Promise<number> {
+  // Use mock implementation if native module is not available
+  if (!isNativeModuleAvailable) {
+    console.log('Using mock Health Connect step data');
+    return 8500; // Mock 8500 steps
+  }
+
   if (!hasPermission) {
     console.log('Health Connect permission not granted for steps data');
     return 0;
@@ -243,7 +277,7 @@ async function getStepCount(): Promise<number> {
     startOfYesterday.setDate(now.getDate() - 1);
     startOfYesterday.setHours(0, 0, 0, 0); // Start of yesterday
 
-    const result = await readRecords('Steps', {
+    const result = await HealthConnect.readRecords('Steps', {
       timeRangeFilter: {
         operator: 'between',
         startTime: startOfYesterday.toISOString(),
@@ -385,9 +419,9 @@ export async function getHealthConnectStatus(labels?: HealthConnectLabels): Prom
 }> {
   // Resolved labels with English fallbacks
   const l = {
-    notAvailableOniOS:    labels?.notAvailableOniOS    ?? 'Not available on iOS',
-    notInstalled:         labels?.notInstalled         ?? 'Not installed',
-    errorCheckingStatus:  labels?.errorCheckingStatus  ?? 'Error checking status',
+    notAvailableOniOS:    labels?.notAvailableOniOS    ?? 'Health Connect is only available on Android',
+    notInstalled:         labels?.notInstalled         ?? 'Health Connect not installed',
+    errorCheckingStatus:  labels?.errorCheckingStatus  ?? 'Error checking Health Connect status',
   };
 
   if (Platform.OS !== 'android') {
@@ -400,8 +434,20 @@ export async function getHealthConnectStatus(labels?: HealthConnectLabels): Prom
     };
   }
 
+  // Use mock implementation if native module is not available
+  if (!isNativeModuleAvailable) {
+    console.log('Using mock Health Connect status');
+    return {
+      available: true,
+      installed: true,
+      hasPermission: hasPermission,
+      deviceName: 'Google Health Connect (Mock)',
+      lastSync: hasPermission ? new Date().toISOString() : null,
+    };
+  }
+
   try {
-    const sdkStatus = await getSdkStatus();
+    const sdkStatus = await HealthConnect.getSdkStatus();
     const installed = sdkStatus === SdkAvailabilityStatus.SDK_AVAILABLE;
 
     return {

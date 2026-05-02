@@ -107,10 +107,7 @@ export default function ConnectScreen() {
   };
 
   const handleGetStarted = async () => {
-    if (user) {
-      await fetchUserProfile(user.email ?? '', user.id);
-    }
-    router.replace('/(tabs)');
+    router.push('/onboarding/lifestyle');
   };
 
   return (
@@ -126,8 +123,8 @@ export default function ConnectScreen() {
 
             <View style={styles.dotsContainer}>
               <View style={styles.dot} />
-              <View style={styles.dot} />
               <View style={[styles.dot, styles.activeDot]} />
+              <View style={styles.dot} />
             </View>
           </View>
 
@@ -194,8 +191,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12,
   },
   title: { fontSize: 28, fontWeight: '700', color: '#FFF', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 24 },
-  dotsContainer: { flexDirection: 'row', gap: 8 },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 32 },
+  dotsContainer: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
   activeDot: { width: 20, backgroundColor: '#FFF' },
   card: { padding: 24 },

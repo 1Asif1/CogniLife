@@ -66,7 +66,7 @@ export default function BasicInfoScreen() {
 
       if (updateError) throw updateError;
 
-      router.push('/onboarding/lifestyle');
+      router.push('/onboarding/connect');
     } catch (e: any) {
       setError(e.message || tx.errorUpdate);
     } finally {
