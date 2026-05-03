@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Frontend-React%20Native%20%2F%20Expo-61DAFB?logo=react&logoColor=black" alt="Frontend"/>
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white" alt="Backend"/>
   <img src="https://img.shields.io/badge/Database-Supabase%20%2F%20PostgreSQL-3ECF8E?logo=supabase&logoColor=white" alt="Database"/>
-  <img src="https://img.shields.io/badge/ML-XGBoost%20%2F%20SHAP-orange?logo=scikit-learn&logoColor=white" alt="ML"/>
+  <img src="https://img.shields.io/badge/ML-XGBoost%20%2F%20SHAP%2F%20K--Means%2F%20Isolation_Forest-orange?logo=scikit-learn&logoColor=white" alt="ML"/>
 </p>
 
 ---
