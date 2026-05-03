@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/Card';
 import { CustomModal } from '../../components/CustomModal';
@@ -18,14 +19,44 @@ const API_BASE_URL =
     ? "http://localhost:8001"
     : `http://${LAN_IP}:8001`;
 
-// Simple mock for a circular progress until react-native-svg is fully handled
-const CircularProgressMock = ({ score }: { score: number }) => (
-  <View style={styles.circleOuter}>
-    <View style={styles.circleInner}>
-      <Text style={styles.circleText}>{score}</Text>
+// Circular progress component using react-native-svg
+const CircularProgress = ({ score, size = 95, strokeWidth = 9 }: { score: number, size?: number, strokeWidth?: number }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
+
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Svg width={size} height={size}>
+        {/* Background Track */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        {/* Progress Arc */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={theme.colors.primary}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="transparent"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.circleText}>{score}</Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const RiskCard = ({ title, percent, trend, icon, color, bgColor, onPress }: any) => (
   <TouchableOpacity
@@ -268,7 +299,7 @@ useEffect(() => {
               </View>
               <Text style={styles.scoreTrend}>{t.scoreTrend}</Text>
             </View>
-            <CircularProgressMock score={healthScore} />
+            <CircularProgress score={healthScore} />
           </Card>
         </View>
       </View>
@@ -382,9 +413,7 @@ const styles = StyleSheet.create({
   scoreValue: { fontSize: 48, fontWeight: '700', color: theme.colors.text },
   scoreSub: { fontSize: 16, color: theme.colors.textSecondary, marginLeft: 4 },
   scoreTrend: { color: theme.colors.success, fontSize: 14, fontWeight: '600' },
-  circleOuter: { width: 80, height: 80, borderRadius: 40, borderWidth: 8, borderColor: theme.colors.primary, justifyContent: 'center', alignItems: 'center' },
-  circleInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  circleText: { fontSize: 18, fontWeight: '700', color: theme.colors.primary },
+  circleText: { fontSize: 24, fontWeight: '700', color: theme.colors.primary },
   content: { padding: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   sectionTitle: { ...theme.typography.h2, marginLeft: 8 },

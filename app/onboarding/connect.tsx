@@ -144,18 +144,6 @@ export default function ConnectScreen() {
               grantedLabel={tx.connected}
             />
 
-            <PermissionCard
-              icon="watch-outline"
-              iconColor={theme.colors.secondary}
-              iconBg="#DBEAFE"
-              title={tx.healthTitle}
-              description={tx.healthDesc}
-              status={healthStatus}
-              onPress={handleHealthConnect}
-              buttonLabel={tx.healthBtn}
-              grantedLabel={tx.connected}
-            />
-
             <View style={styles.infoBox}>
               <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.success} style={{ marginRight: 10 }} />
               <Text style={styles.infoText}>{tx.infoText}</Text>
