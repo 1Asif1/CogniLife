@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '../../components/Card';
@@ -77,6 +77,8 @@ export default function HomeScreen() {
     title: "",
     message: "",
   });
+  const [anomalyModalVisible, setAnomalyModalVisible] = useState(false);
+  const shownAnomalyId = useRef<string | null>(null);
 
   const t = useTranslated({
     morning: "Good Morning",
@@ -142,6 +144,10 @@ export default function HomeScreen() {
           const latestAnomaly = dbData.recent_anomalies[0];
           if (latestAnomaly.is_anomaly) {
             setAnomaly(latestAnomaly);
+            if (shownAnomalyId.current !== latestAnomaly.id) {
+              setAnomalyModalVisible(true);
+              shownAnomalyId.current = latestAnomaly.id;
+            }
           }
         }
       }
@@ -208,6 +214,26 @@ export default function HomeScreen() {
     };
   };
 
+  const shownAnomalies = useRef<Set<string>>(new Set());
+const [showAnomaly, setShowAnomaly] = useState(false);
+
+useEffect(() => {
+  if (anomaly) {
+    const key = anomaly.anomaly_type; // or use id if available
+
+    if (!shownAnomalies.current.has(key)) {
+      shownAnomalies.current.add(key);
+      setShowAnomaly(true);
+
+      const timer = setTimeout(() => {
+        setShowAnomaly(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }
+}, [anomaly]);
+
   const healthScore = 95 - (recommendations.filter(r => r.priority === "CRITICAL").length * 15);
   const diabetesProps = getRiskCardProps('diabetesrisk', t.diabetes, 'water-outline');
   const anemiaProps = getRiskCardProps('anemiarisk', t.anemia, 'heart-half-outline');
@@ -248,15 +274,20 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
-        {anomaly && (
-          <View style={styles.anomalyBanner}>
-            <Ionicons name="warning-outline" size={24} color="#FFF" style={{ marginRight: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.anomalyTitle}>{t.anomalyTitle}</Text>
-              <Text style={styles.anomalyDesc}>{anomaly.anomaly_type}</Text>
-            </View>
+      {anomaly && showAnomaly && (
+        <View style={styles.anomalyBanner}>
+          <Ionicons 
+            name="warning-outline" 
+            size={24} 
+            color="#FFF" 
+            style={{ marginRight: 12 }} 
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.anomalyTitle}>{t.anomalyTitle}</Text>
+            <Text style={styles.anomalyDesc}>{anomaly.anomaly_type}</Text>
           </View>
-        )}
+        </View>
+      )}
 
         <Card style={styles.behaviorCard}>
           <View style={styles.behaviorHeader}>
@@ -318,6 +349,15 @@ export default function HomeScreen() {
         title={selectedRisk.title}
         message={selectedRisk.message}
         onConfirm={() => setSelectedRisk((prev) => ({ ...prev, visible: false }))}
+        showCancel={false}
+        confirmText={t.gotIt}
+      />
+
+      <CustomModal
+        visible={anomalyModalVisible}
+        title={t.anomalyTitle}
+        message={anomaly?.anomaly_type || "Unusual Behavior Pattern Detected"}
+        onConfirm={() => setAnomalyModalVisible(false)}
         showCancel={false}
         confirmText={t.gotIt}
       />

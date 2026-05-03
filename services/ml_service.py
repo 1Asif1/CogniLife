@@ -232,14 +232,37 @@ class MLService:
             for col in expected:
                 if col not in df_model.columns:
                     df_model[col] = 0
-            df_model = df_model[expected]
+            if self.scaler is not None:
+                scale_cols = list(self.scaler.feature_names_in_)
+                df_scale = df_model.copy()
+                for col in scale_cols:
+                    if col not in df_scale.columns: df_scale[col] = 0
+                df_scale[scale_cols] = self.scaler.transform(df_scale[scale_cols])
+                df_model = df_scale[expected]
+            else:
+                df_model = df_model[expected]
             
             pred = self.isolation_forest_model.predict(df_model)[0]
             is_anomaly = bool(pred == -1)
             score = self.isolation_forest_model.decision_function(df_model)[0]
             anomaly_score = max(0.0, min(1.0, 0.5 - score))
             
+            # Filter out false positives from Isolation Forest:
+            # Only flag as anomaly if the user is actually exhibiting SEVERELY unhealthy patterns
+            if is_anomaly and full_features is not None:
+                health_score = full_features.get('health_score', pd.Series([0.5])).iloc[0]
+                lifestyle_risk = full_features.get('lifestyle_risk', pd.Series([0.5])).iloc[0]
+                
+                # Require severely unhealthy metrics to confirm the anomaly
+                is_severely_unhealthy = (health_score < 0.35) or (lifestyle_risk > 2.0)
+                
+                if not is_severely_unhealthy:
+                    is_anomaly = False
+            
             anomaly_type = "Unusual Behavior Pattern" if is_anomaly else None
+            if not is_anomaly:
+                anomaly_score = 0.0
+                
             return is_anomaly, anomaly_type, float(anomaly_score)
             
         stress_level = log_data.get("stress_level", 5)
@@ -277,7 +300,15 @@ class MLService:
             for col in expected:
                 if col not in df_model.columns:
                     df_model[col] = 0
-            df_model = df_model[expected]
+            if self.scaler is not None:
+                scale_cols = list(self.scaler.feature_names_in_)
+                df_scale = df_model.copy()
+                for col in scale_cols:
+                    if col not in df_scale.columns: df_scale[col] = 0
+                df_scale[scale_cols] = self.scaler.transform(df_scale[scale_cols])
+                df_model = df_scale[expected]
+            else:
+                df_model = df_model[expected]
             
             cluster_id = int(self.kmeans_model.predict(df_model)[0])
             names = {
@@ -442,6 +473,7 @@ class MLService:
             df_fe = self.fe_func(df)
         else:
             df_fe = df.copy()
+            
         return df_fe
 
     def predict_and_explain(self, user_input: Dict[str, Any]) -> Dict[str, Any]:
@@ -451,6 +483,13 @@ class MLService:
         """
         df = pd.DataFrame([user_input])
         df = self.fe_func(df)
+
+        if self.scaler is not None:
+            expected_cols = list(self.scaler.feature_names_in_)
+            for col in expected_cols:
+                if col not in df.columns:
+                    df[col] = 0
+            df[expected_cols] = self.scaler.transform(df[expected_cols])
 
         # Align columns with what the model was trained on
         expected_features = list(self.xgb_model.estimators_[0].feature_names_in_)

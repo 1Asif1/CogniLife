@@ -288,6 +288,20 @@ class SupabaseClient:
             logger.error(f"Error getting user logs: {e}")
             return []
 
+    async def get_user_log_count(self, user_id: str) -> int:
+        """Get the total number of daily logs for a user"""
+        try:
+            client = self.client_service or self.client_anon
+            if client is None:
+                raise RuntimeError("Supabase client not initialized")
+
+            # Use count option for efficiency
+            result = client.table("daily_logs").select("id", count="exact").eq("user_id", user_id).execute()
+            return result.count if hasattr(result, "count") else 0
+        except Exception as e:
+            logger.error(f"Error getting log count: {e}")
+            return 0
+
     async def get_user_predictions(self, user_id: str, limit: int = 30) -> List[Dict[str, Any]]:
         """Get user's predictions"""
         try:
@@ -331,6 +345,11 @@ class SupabaseClient:
             data = self._execute(
                 client.table("anomalies").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(limit)
             )
+            
+            if data:
+                for row in data:
+                    row["is_anomaly"] = bool(row.get("anomaly_flag", 0))
+                    
             return data or []
         except Exception as e:
             logger.error(f"Error getting anomalies: {e}")
@@ -363,6 +382,13 @@ class SupabaseClient:
             recent_anomalies = await self.get_user_anomalies(user_id, limit=5)
             recent_behavior_clusters = await self.get_user_behavior_clusters(user_id, limit=5)
             
+            # Suppress anomalies for new users (less than 3 logs)
+            if len(recent_logs) < 3:
+                for anomaly in recent_anomalies:
+                    anomaly["is_anomaly"] = False
+                    anomaly["anomaly_flag"] = 0
+                logger.info(f"Anomalies suppressed in dashboard for user {user_id} due to low log count ({len(recent_logs)})")
+
             # Dynamically inject SHAP explanations for the most recent log
             if recent_logs:
                 from services.ml_service import ml_service

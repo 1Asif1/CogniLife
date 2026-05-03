@@ -187,11 +187,21 @@ async def process_daily_log(user_id: str, log_data: DailyLogCreate):
         logger.info(f"Saved prediction {prediction['id']}")
         
         # Step 5: Save anomaly detection results
+        # Only show anomalies if user has at least 3 logs
+        log_count = await supabase_client.get_user_log_count(user_id)
+        is_anomaly = ml_results['anomaly'].get("is_anomaly", False)
+        
+        if log_count < 3:
+            is_anomaly = False
+            logger.info(f"Anomaly suppressed for user {user_id} (log count: {log_count})")
+
         anomaly = await supabase_client.save_anomaly(
             user_id=user_id,
             log_id=log_id,
-            anomaly_data=ml_results['anomaly']
+            anomaly_data={**ml_results['anomaly'], "is_anomaly": is_anomaly}
         )
+        anomaly["is_anomaly"] = is_anomaly
+        anomaly["anomaly_type"] = ml_results['anomaly'].get("anomaly_type", "Unusual Behavior Pattern")
         logger.info(f"Saved anomaly detection")
         
         # Step 6: Save behavior cluster

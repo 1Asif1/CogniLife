@@ -399,13 +399,15 @@ export default function DailyLogScreen() {
     setSubmitting(false);
 
     if (result.success) {
-      setModalConfig({
-        title: t.logSavedTitle,
-        message: existingLog ? t.logUpdated : t.logSaved,
-        onConfirm: () => { setModalVisible(false); router.back(); },
-        confirmText: t.great,
-        showCancel: false,
-      });
+      {
+        setModalConfig({
+          title: t.logSavedTitle,
+          message: existingLog ? t.logUpdated : t.logSaved,
+          onConfirm: () => { setModalVisible(false); router.back(); },
+          confirmText: t.great,
+          showCancel: false,
+        });
+      }
       setModalVisible(true);
     } else {
       setModalConfig({

@@ -102,6 +102,8 @@ class AnomalyResponse(BaseModel):
     log_id: str
     anomaly_flag: int
     anomaly_score: float
+    is_anomaly: Optional[bool] = None
+    anomaly_type: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:

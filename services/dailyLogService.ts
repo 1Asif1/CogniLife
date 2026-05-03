@@ -87,7 +87,7 @@ export async function submitDailyLog(
   userId: string,
   autoData: AutoCollectedData,
   manualData: ManualLogData
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; anomaly?: any }> {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
@@ -145,7 +145,7 @@ export async function submitDailyLog(
     const result = await response.json();
     console.log('Successfully processed daily log and generated ML results:', result);
     
-    return { success: true };
+    return { success: true, anomaly: result.anomaly };
   } catch (error: any) {
     console.error('Failed to submit daily log to backend:', error);
     console.error('Error details:', error.message);
