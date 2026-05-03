@@ -13,11 +13,21 @@ const getScreenTimeModule = (): any | null => {
     // Dynamic require keeps the module out of the Web/iOS bundle graph
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { requireNativeModule } = require('expo-modules-core');
-    const mod = requireNativeModule('ScreenTimeModule');
+    // Try the canonical name first, then a legacy/alternate name.
+    let mod: any = null;
+    try {
+      mod = requireNativeModule('ScreenTimeModule');
+    } catch (e) {
+      try {
+        mod = requireNativeModule('ExpoScreenTime');
+      } catch (e2) {
+        mod = null;
+      }
+    }
     console.log('[ScreenTimeService] getScreenTimeModule loaded:', !!mod);
     return mod;
   } catch (e) {
-    console.error('[ScreenTimeService] Failed to load ScreenTimeModule:', e);
+    console.error('[ScreenTimeService] Failed to load ScreenTimeModule/ExpoScreenTime:', e);
     return null;
   }
 };
